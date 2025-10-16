@@ -1,0 +1,67 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Cliente {
+  id              String   @id @default(cuid())
+  nome            String
+  whatsapp        String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  ordensServico   OrdemServico[]
+}
+
+model CategoriaServico {
+  id          String   @id @default(cuid())
+  nome        String   @unique
+  descricao   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  ordensServico OrdemServico[]
+}
+
+model StatusServico {
+  id          String   @id @default(cuid())
+  nome        String   @unique
+  descricao   String?
+  cor         String   @default("#6B7280")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  ordensServico OrdemServico[]
+}
+
+model OrdemServico {
+  id                    String   @id @default(cuid())
+  numeroOS              String   @unique
+  clienteId             String
+  equipamentoModelo     String
+  equipamentoProblema   String
+  equipamentoSenha      String?
+  acessorios            String?
+  categoriaId           String
+  statusId              String
+  terceirizado          Boolean  @default(false)
+  servicoTerceirizado   String?
+  rastreamentoExterno   String?
+  descricaoServico      String?
+  valor                 Float?
+  previsaoEntrega       DateTime?
+  dataConclusao         DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  cliente               Cliente @relation(fields: [clienteId], references: [id])
+  categoria             CategoriaServico @relation(fields: [categoriaId], references: [id])
+  status                StatusServico @relation(fields: [statusId], references: [id])
+}
