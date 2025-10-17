@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -39,68 +39,55 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState('dashboard')
   const [showOSForm, setShowOSForm] = useState(false)
 
+  // Dados dinâmicos
+  const [ordens, setOrdens] = useState<any[]>([])
+  const [clientes, setClientes] = useState<any[]>([])
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [oRes, cRes] = await Promise.all([
+          fetch('/api/ordens'),
+          fetch('/api/clientes'),
+        ])
+        if (oRes.ok) setOrdens(await oRes.json())
+        if (cRes.ok) setClientes(await cRes.json())
+      } catch (err) {
+        console.error('Falha ao carregar dashboard:', err)
+      }
+    }
+    load()
+  }, [])
+
   // Se não estiver autenticado, mostrar página de login
   if (!user) {
     return <LoginPage />
   }
 
+  // Cálculos básicos com base nas ordens carregadas
+  const todayStr = new Date().toISOString().split('T')[0]
+  const reparosHoje = ordens.filter((os) => {
+    if (!os.previsaoEntrega) return false
+    const v = String(os.previsaoEntrega)
+    const dateOnly = v.includes('T') ? new Date(v).toISOString().split('T')[0] : v
+    return dateOnly === todayStr
+  }).length
+  const pendentes = ordens.filter((os) => !['Concluído','Entregue','Cancelado'].includes(os.status)).length
+
   const statsCards = [
-    {
-      title: "Ordens de Serviço",
-      value: "156",
-      change: "+12%",
-      icon: Wrench,
-      color: "text-blue-600"
-    },
-    {
-      title: "Clientes Ativos",
-      value: "89",
-      change: "+8%",
-      icon: Users,
-      color: "text-green-600"
-    },
-    {
-      title: "Consertos Hoje",
-      value: "12",
-      change: "+3",
-      icon: CheckCircle,
-      color: "text-emerald-600"
-    },
-    {
-      title: "Pendentes",
-      value: "8",
-      change: "-2",
-      icon: AlertCircle,
-      color: "text-orange-600"
-    }
+    { title: 'Ordens de Serviço', value: String(ordens.length), icon: Wrench, color: 'text-blue-600' },
+    { title: 'Clientes Ativos', value: String(clientes.length), icon: Users, color: 'text-green-600' },
+    { title: 'Consertos Hoje', value: String(reparosHoje), icon: CheckCircle, color: 'text-emerald-600' },
+    { title: 'Pendentes', value: String(pendentes), icon: AlertCircle, color: 'text-orange-600' },
   ]
 
-  const servicosRecentes = [
-    {
-      id: "OS-001",
-      cliente: "João Silva",
-      equipamento: "Notebook Dell",
-      problema: "Tela quebrada",
-      status: "Em Andamento",
-      prioridade: "Alta"
-    },
-    {
-      id: "OS-002", 
-      cliente: "Maria Santos",
-      equipamento: "iPhone 13",
-      problema: "Bateria não carrega",
-      status: "Aguardando Peça",
-      prioridade: "Média"
-    },
-    {
-      id: "OS-003",
-      cliente: "Pedro Costa",
-      equipamento: "PC Desktop",
-      problema: "Liga mas não dá vídeo",
-      status: "Concluído",
-      prioridade: "Baixa"
-    }
-  ]
+  const servicosRecentes = ordens.slice(0, 3).map((os) => ({
+    id: os.numeroOS,
+    cliente: os.clienteNome,
+    equipamento: os.equipamentoModelo,
+    problema: os.equipamentoProblema,
+    status: os.status,
+  }))
 
   const getStatusColor = (status: string) => {
     switch(status) {
@@ -111,14 +98,7 @@ export default function Home() {
     }
   }
 
-  const getPrioridadeColor = (prioridade: string) => {
-    switch(prioridade) {
-      case "Alta": return "bg-red-100 text-red-800"
-      case "Média": return "bg-yellow-100 text-yellow-800"
-      case "Baixa": return "bg-gray-100 text-gray-800"
-      default: return "bg-gray-100 text-gray-800"
-    }
-  }
+  // Removido indicador de prioridade (não há campo correspondente nas O.S.)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
@@ -251,12 +231,7 @@ export default function Home() {
                       </CardHeader>
                       <CardContent>
                         <div className="text-2xl font-bold text-slate-900">{stat.value}</div>
-                        <p className="text-xs text-slate-500">
-                          <span className={stat.change.startsWith('+') ? 'text-green-600' : 'text-red-600'}>
-                            {stat.change}
-                          </span>
-                          {' '}vs mês anterior
-                        </p>
+                        {/* Removido comparativo vs mês anterior para evitar dados fictícios */}
                       </CardContent>
                     </Card>
                   ))}
@@ -282,9 +257,7 @@ export default function Home() {
                                 <Badge className={getStatusColor(servico.status)}>
                                   {servico.status}
                                 </Badge>
-                                <Badge className={getPrioridadeColor(servico.prioridade)} variant="outline">
-                                  {servico.prioridade}
-                                </Badge>
+                                {/* Indicador de prioridade removido */}
                               </div>
                               <p className="text-sm text-slate-600">{servico.cliente} - {servico.equipamento}</p>
                               <p className="text-xs text-slate-500">{servico.problema}</p>

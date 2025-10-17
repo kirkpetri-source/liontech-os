@@ -84,26 +84,7 @@ export default function OSForm({ onClose, onSave }: OSFormProps) {
 
   const formasPagamento = ['Dinheiro', 'Pix', 'Cartão de Crédito', 'Cartão de Débito', 'Transferência Bancária', 'Boleto']
 
-  // Dados fallback caso as APIs falhem
-  const categoriasFallback: Categoria[] = [
-    { id: '1', nome: 'Notebooks', descricao: 'Serviços para notebooks e laptops' },
-    { id: '2', nome: 'Desktops', descricao: 'Manutenção em computadores de mesa' },
-    { id: '3', nome: 'Smartphones', descricao: 'Reparos em celulares e smartphones' },
-    { id: '4', nome: 'Tablets', descricao: 'Serviços para tablets' },
-    { id: '5', nome: 'Monitores', descricao: 'Reparos em monitores e telas' },
-    { id: '6', nome: 'Impressoras', descricao: 'Manutenção em impressoras' },
-    { id: '7', nome: 'Outros', descricao: 'Outros tipos de equipamentos' }
-  ]
-
-  const statusFallback: Status[] = [
-    { id: '1', nome: 'Recebido', descricao: 'Equipamento recebido para análise', cor: '#8B5CF6' },
-    { id: '2', nome: 'Em Andamento', descricao: 'Serviço sendo executado', cor: '#3B82F6' },
-    { id: '3', nome: 'Aguardando Peça', descricao: 'Aguardando chegada de peça', cor: '#F59E0B' },
-    { id: '4', nome: 'Aguardando Orçamento', descricao: 'Aguardando aprovação do orçamento', cor: '#EC4899' },
-    { id: '5', nome: 'Concluído', descricao: 'Serviço finalizado com sucesso', cor: '#10B981' },
-    { id: '6', nome: 'Entregue', descricao: 'Equipamento entregue ao cliente', cor: '#059669' },
-    { id: '7', nome: 'Cancelado', descricao: 'Serviço cancelado', cor: '#EF4444' }
-  ]
+  // Removidos fallbacks: categorias e status devem refletir exclusivamente o que está configurado
 
   // Carregar categorias do banco de dados
   useEffect(() => {
@@ -112,17 +93,13 @@ export default function OSForm({ onClose, onSave }: OSFormProps) {
         const response = await fetch('/api/categorias')
         if (response.ok) {
           const data = await response.json()
-          if (data && data.length > 0) {
-            setCategorias(data)
-          } else {
-            setCategorias(categoriasFallback)
-          }
+          setCategorias(Array.isArray(data) ? data : [])
         } else {
-          setCategorias(categoriasFallback)
+          setCategorias([])
         }
       } catch (error) {
-        console.error('Erro ao buscar categorias, usando fallback:', error)
-        setCategorias(categoriasFallback)
+        console.error('Erro ao buscar categorias:', error)
+        setCategorias([])
       } finally {
         setLoadingCategorias(false)
       }
@@ -138,17 +115,13 @@ export default function OSForm({ onClose, onSave }: OSFormProps) {
         const response = await fetch('/api/status')
         if (response.ok) {
           const data = await response.json()
-          if (data && data.length > 0) {
-            setStatusList(data)
-          } else {
-            setStatusList(statusFallback)
-          }
+          setStatusList(Array.isArray(data) ? data : [])
         } else {
-          setStatusList(statusFallback)
+          setStatusList([])
         }
       } catch (error) {
-        console.error('Erro ao buscar status, usando fallback:', error)
-        setStatusList(statusFallback)
+        console.error('Erro ao buscar status:', error)
+        setStatusList([])
       } finally {
         setLoadingStatus(false)
       }
@@ -506,8 +479,8 @@ export default function OSForm({ onClose, onSave }: OSFormProps) {
                       )}
                       <div className="flex justify-between text-sm font-bold border-t pt-1">
                         <span>Saldo Restante:</span>
-                        <span className={parseFloat(formData.valor) - (parseFloat(formData.valorPago || 0) + parseFloat(formData.valorEntrada || 0)) > 0 ? 'text-orange-600' : 'text-green-600'}>
-                          R$ {(parseFloat(formData.valor) - (parseFloat(formData.valorPago || 0) + parseFloat(formData.valorEntrada || 0))).toFixed(2)}
+                        <span className={(parseFloat(formData.valor) - (parseFloat(formData.valorPago || '0') + parseFloat(formData.valorEntrada || '0'))) > 0 ? 'text-orange-600' : 'text-green-600'}>
+                          R$ {(parseFloat(formData.valor) - (parseFloat(formData.valorPago || '0') + parseFloat(formData.valorEntrada || '0'))).toFixed(2)}
                         </span>
                       </div>
                     </div>

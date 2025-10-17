@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -38,6 +38,7 @@ import {
   Eye,
   EyeOff
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface Usuario {
   id: string
@@ -79,130 +80,27 @@ export default function ConfiguracoesPage() {
   const [editingStatus, setEditingStatus] = useState<Status | null>(null)
   const [showPassword, setShowPassword] = useState(false)
 
-  // Dados mockados
-  const [usuarios, setUsuarios] = useState<Usuario[]>([
-    {
-      id: '1',
-      nome: 'Administrador',
-      email: 'admin@liontech.com.br',
-      cargo: 'Administrador',
-      nivel: 'admin',
-      status: 'ativo',
-      dataCriacao: '01/01/2024',
-      ultimoAcesso: 'Hoje, 14:30'
-    },
-    {
-      id: '2',
-      nome: 'João Silva',
-      email: 'joao@liontech.com.br',
-      cargo: 'Técnico Senior',
-      nivel: 'tecnico',
-      status: 'ativo',
-      dataCriacao: '15/01/2024',
-      ultimoAcesso: 'Hoje, 11:20'
-    },
-    {
-      id: '3',
-      nome: 'Maria Santos',
-      email: 'maria@liontech.com.br',
-      cargo: 'Recepcionista',
-      nivel: 'recepcao',
-      status: 'ativo',
-      dataCriacao: '20/01/2024',
-      ultimoAcesso: 'Ontem, 16:45'
-    }
-  ])
+  // Usuários do backend
+  const [usuarios, setUsuarios] = useState<Usuario[]>([])
 
-  const [categorias, setCategorias] = useState<Categoria[]>([
-    {
-      id: '1',
-      nome: 'Notebooks',
-      descricao: 'Serviços para notebooks e laptops',
-      cor: '#3B82F6',
-      ativa: true,
-      quantidadeOS: 45
-    },
-    {
-      id: '2',
-      nome: 'Smartphones',
-      descricao: 'Reparos em celulares e smartphones',
-      cor: '#10B981',
-      ativa: true,
-      quantidadeOS: 67
-    },
-    {
-      id: '3',
-      nome: 'Desktops',
-      descricao: 'Manutenção em computadores de mesa',
-      cor: '#F59E0B',
-      ativa: true,
-      quantidadeOS: 23
-    },
-    {
-      id: '4',
-      nome: 'Tablets',
-      descricao: 'Serviços para tablets',
-      cor: '#8B5CF6',
-      ativa: false,
-      quantidadeOS: 0
-    }
-  ])
+  const [categorias, setCategorias] = useState<Categoria[]>([])
 
-  const [statusList, setStatusList] = useState<Status[]>([
-    {
-      id: '1',
-      nome: 'Aguardando Orçamento',
-      descricao: 'Aguardando aprovação do orçamento pelo cliente',
-      tipo: 'inicial',
-      cor: '#F59E0B',
-      padrao: true,
-      ordem: 1
-    },
-    {
-      id: '2',
-      nome: 'Em Andamento',
-      descricao: 'Serviço sendo executado',
-      tipo: 'andamento',
-      cor: '#3B82F6',
-      padrao: true,
-      ordem: 2
-    },
-    {
-      id: '3',
-      nome: 'Aguardando Peça',
-      descricao: 'Aguardando chegada de peça',
-      tipo: 'andamento',
-      cor: '#8B5CF6',
-      padrao: true,
-      ordem: 3
-    },
-    {
-      id: '4',
-      nome: 'Concluído',
-      descricao: 'Serviço finalizado com sucesso',
-      tipo: 'final',
-      cor: '#10B981',
-      padrao: true,
-      ordem: 4
-    },
-    {
-      id: '5',
-      nome: 'Cancelado',
-      descricao: 'Serviço cancelado',
-      tipo: 'cancelado',
-      cor: '#EF4444',
-      padrao: true,
-      ordem: 5
-    }
-  ])
+  const [statusList, setStatusList] = useState<Status[]>([])
 
-  const [novoUsuario, setNovoUsuario] = useState({
+  const [novoUsuario, setNovoUsuario] = useState<{
+    nome: string
+    email: string
+    senha: string
+    cargo: string
+    nivel: Usuario['nivel']
+    status: Usuario['status']
+  }>({
     nome: '',
     email: '',
     senha: '',
     cargo: '',
-    nivel: 'tecnico' as const,
-    status: 'ativo' as const
+    nivel: 'tecnico',
+    status: 'ativo'
   })
 
   const [novaCategoria, setNovaCategoria] = useState({
@@ -212,14 +110,165 @@ export default function ConfiguracoesPage() {
     ativa: true
   })
 
-  const [novoStatus, setNovoStatus] = useState({
+  const [novoStatus, setNovoStatus] = useState<{
+    nome: string
+    descricao: string
+    tipo: Status['tipo']
+    cor: string
+    padrao: boolean
+    ordem: number
+  }>({
     nome: '',
     descricao: '',
-    tipo: 'andamento' as const,
+    tipo: 'andamento',
     cor: '#3B82F6',
     padrao: false,
     ordem: 1
   })
+
+  // Configurações Gerais
+  const [empresa, setEmpresa] = useState({
+    nome: 'Lion Tech',
+    cnpj: '',
+    telefone: '(11) 9999-9999',
+    email: 'contato@liontech.com.br',
+    endereco: 'São Paulo - SP',
+  })
+
+  const [sistemaCfg, setSistemaCfg] = useState({
+    notificacoesEmail: true,
+    backupAutomatico: true,
+    modoEscuro: false,
+    confirmacaoAcoes: true,
+    moedaPadrao: 'BRL',
+  })
+
+  const [impressao, setImpressao] = useState({
+    cabecalhoOrdens: true,
+    rodapeHabilitado: true,
+    codigoBarras: false,
+    tamanhoPapel: 'A4',
+    logoUrl: '',
+  })
+
+  const [seguranca, setSeguranca] = useState({
+    doisFatores: false,
+    expiracaoSenha: false,
+    logAtividades: true,
+    sessao: '8h',
+  })
+
+  // Dialog do botão Sistema
+  const [showSystemDialog, setShowSystemDialog] = useState(false)
+  const [systemInfo, setSystemInfo] = useState<any>(null)
+
+  // Carregar dados iniciais (usuários, categorias, status, config)
+  useEffect(() => {
+    const fetchUsuarios = async () => {
+      try {
+        const res = await fetch('/api/usuarios')
+        if (res.ok) {
+          const data = await res.json()
+          setUsuarios(Array.isArray(data) ? data : [])
+        } else {
+          setUsuarios([])
+        }
+      } catch (e) {
+        console.error('Erro ao carregar usuários:', e)
+        setUsuarios([])
+      }
+    }
+
+    const fetchCategorias = async () => {
+      try {
+        const res = await fetch('/api/categorias')
+        if (res.ok) {
+          const data = await res.json()
+          const mapped = (Array.isArray(data) ? data : []).map((c: any) => ({
+            id: c.id,
+            nome: c.nome,
+            descricao: c.descricao || '',
+            cor: c.cor || '#3B82F6',
+            ativa: c.ativa ?? true,
+            quantidadeOS: c.quantidadeOS ?? 0,
+          }))
+          setCategorias(mapped)
+        } else {
+          setCategorias([])
+        }
+      } catch (e) {
+        console.error('Erro ao carregar categorias:', e)
+        setCategorias([])
+      }
+    }
+
+    const fetchStatus = async () => {
+      try {
+        const res = await fetch('/api/status')
+        if (res.ok) {
+          const data = await res.json()
+          const mapped = (Array.isArray(data) ? data : []).map((s: any) => ({
+            id: s.id,
+            nome: s.nome,
+            descricao: s.descricao || '',
+            tipo: s.tipo || 'andamento',
+            cor: s.cor || '#3B82F6',
+            padrao: s.padrao ?? false,
+            ordem: s.ordem ?? 1,
+          }))
+          setStatusList(mapped)
+        } else {
+          setStatusList([])
+        }
+      } catch (e) {
+        console.error('Erro ao carregar status:', e)
+        setStatusList([])
+      }
+    }
+
+    const fetchConfig = async () => {
+      try {
+        const res = await fetch('/api/config')
+        if (res.ok) {
+          const cfg = await res.json()
+          if (cfg.empresa) setEmpresa({
+            nome: cfg.empresa.nome || '',
+            cnpj: cfg.empresa.cnpj || '',
+            telefone: cfg.empresa.telefone || '',
+            email: cfg.empresa.email || '',
+            endereco: cfg.empresa.endereco || '',
+          })
+          if (cfg.sistema) setSistemaCfg({
+            notificacoesEmail: !!cfg.sistema.notificacoesEmail,
+            backupAutomatico: !!cfg.sistema.backupAutomatico,
+            modoEscuro: !!cfg.sistema.modoEscuro,
+            confirmacaoAcoes: !!cfg.sistema.confirmacaoAcoes,
+            moedaPadrao: cfg.sistema.moedaPadrao || 'BRL',
+          })
+          if (cfg.impressao) setImpressao({
+            cabecalhoOrdens: cfg.impressao.cabecalhoOrdens ?? true,
+            rodapeHabilitado: cfg.impressao.rodapeHabilitado ?? true,
+            codigoBarras: cfg.impressao.codigoBarras ?? false,
+            tamanhoPapel: cfg.impressao.tamanhoPapel || 'A4',
+            logoUrl: cfg.impressao.logoUrl || '',
+          })
+          if (cfg.seguranca) setSeguranca({
+            doisFatores: !!cfg.seguranca.doisFatores,
+            expiracaoSenha: !!cfg.seguranca.expiracaoSenha,
+            logAtividades: cfg.seguranca.logAtividades ?? true,
+            sessao: cfg.seguranca.sessao || '8h',
+          })
+        }
+      } catch (e) {
+        console.error('Erro ao carregar configurações:', e)
+      }
+    }
+
+    fetchUsuarios()
+    fetchCategorias()
+    fetchStatus()
+    fetchConfig()
+  }, [])
 
   const getNivelColor = (nivel: string) => {
     switch(nivel) {
@@ -241,71 +290,107 @@ export default function ConfiguracoesPage() {
     }
   }
 
-  const handleSaveUser = () => {
-    if (editingUser) {
-      setUsuarios(usuarios.map(u => u.id === editingUser.id ? { ...editingUser, ...novoUsuario } : u))
-    } else {
-      const newUser: Usuario = {
-        id: Date.now().toString(),
-        ...novoUsuario,
-        dataCriacao: new Date().toLocaleDateString('pt-BR'),
-        ultimoAcesso: 'Nunca'
+  const handleSaveUser = async () => {
+    try {
+      if (editingUser) {
+        await fetch(`/api/usuarios/${editingUser.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nome: novoUsuario.nome,
+            email: novoUsuario.email,
+            cargo: novoUsuario.cargo,
+            nivel: novoUsuario.nivel,
+            status: novoUsuario.status,
+          }),
+        })
+      } else {
+        await fetch('/api/usuarios', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(novoUsuario),
+        })
       }
-      setUsuarios([...usuarios, newUser])
+      const res = await fetch('/api/usuarios')
+      setUsuarios(res.ok ? await res.json() : [])
+    } catch (e) {
+      console.error('Erro ao salvar usuário:', e)
+    } finally {
+      setShowUserDialog(false)
+      setEditingUser(null)
+      setNovoUsuario({ nome: '', email: '', senha: '', cargo: '', nivel: 'tecnico', status: 'ativo' })
     }
-    setShowUserDialog(false)
-    setEditingUser(null)
-    setNovoUsuario({
-      nome: '',
-      email: '',
-      senha: '',
-      cargo: '',
-      nivel: 'tecnico',
-      status: 'ativo'
-    })
   }
 
-  const handleSaveCategory = () => {
-    if (editingCategory) {
-      setCategorias(categorias.map(c => c.id === editingCategory.id ? { ...editingCategory, ...novaCategoria } : c))
-    } else {
-      const newCategory: Categoria = {
-        id: Date.now().toString(),
-        ...novaCategoria,
-        quantidadeOS: 0
+  const handleSaveCategory = async () => {
+    try {
+      if (editingCategory) {
+        await fetch(`/api/categorias/${editingCategory.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(novaCategoria),
+        })
+      } else {
+        await fetch('/api/categorias', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...novaCategoria, quantidadeOS: 0 }),
+        })
       }
-      setCategorias([...categorias, newCategory])
+      const res = await fetch('/api/categorias')
+      const data = res.ok ? await res.json() : []
+      const mapped = (Array.isArray(data) ? data : []).map((c: any) => ({
+        id: c.id,
+        nome: c.nome,
+        descricao: c.descricao || '',
+        cor: c.cor || '#3B82F6',
+        ativa: c.ativa ?? true,
+        quantidadeOS: c.quantidadeOS ?? 0,
+      }))
+      setCategorias(mapped)
+    } catch (e) {
+      console.error('Erro ao salvar categoria:', e)
+    } finally {
+      setShowCategoryDialog(false)
+      setEditingCategory(null)
+      setNovaCategoria({ nome: '', descricao: '', cor: '#3B82F6', ativa: true })
     }
-    setShowCategoryDialog(false)
-    setEditingCategory(null)
-    setNovaCategoria({
-      nome: '',
-      descricao: '',
-      cor: '#3B82F6',
-      ativa: true
-    })
   }
 
-  const handleSaveStatus = () => {
-    if (editingStatus) {
-      setStatusList(statusList.map(s => s.id === editingStatus.id ? { ...editingStatus, ...novoStatus } : s))
-    } else {
-      const newStatus: Status = {
-        id: Date.now().toString(),
-        ...novoStatus
+  const handleSaveStatus = async () => {
+    try {
+      if (editingStatus) {
+        await fetch(`/api/status/${editingStatus.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(novoStatus),
+        })
+      } else {
+        await fetch('/api/status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(novoStatus),
+        })
       }
-      setStatusList([...statusList, newStatus])
+      const res = await fetch('/api/status')
+      const data = res.ok ? await res.json() : []
+      const mapped = (Array.isArray(data) ? data : []).map((s: any) => ({
+        id: s.id,
+        nome: s.nome,
+        descricao: s.descricao || '',
+        tipo: s.tipo || 'andamento',
+        cor: s.cor || '#3B82F6',
+        padrao: s.padrao ?? false,
+        ordem: s.ordem ?? 1,
+      }))
+      setStatusList(mapped)
+    } catch (e) {
+      console.error('Erro ao salvar status:', e)
+    } finally {
+      setShowStatusDialog(false)
+      setEditingStatus(null)
+      setNovoStatus({ nome: '', descricao: '', tipo: 'andamento', cor: '#3B82F6', padrao: false, ordem: 1 })
     }
-    setShowStatusDialog(false)
-    setEditingStatus(null)
-    setNovoStatus({
-      nome: '',
-      descricao: '',
-      tipo: 'andamento',
-      cor: '#3B82F6',
-      padrao: false,
-      ordem: statusList.length + 1
-    })
   }
 
   const handleEditUser = (usuario: Usuario) => {
@@ -345,16 +430,243 @@ export default function ConfiguracoesPage() {
     setShowStatusDialog(true)
   }
 
-  const handleDeleteUser = (id: string) => {
-    setUsuarios(usuarios.filter(u => u.id !== id))
+  const handleDeleteUser = async (id: string) => {
+    try {
+      await fetch(`/api/usuarios/${id}`, { method: 'DELETE' })
+      const res = await fetch('/api/usuarios')
+      setUsuarios(res.ok ? await res.json() : [])
+    } catch (e) {
+      console.error('Erro ao excluir usuário:', e)
+    }
   }
 
-  const handleDeleteCategory = (id: string) => {
-    setCategorias(categorias.filter(c => c.id !== id))
+  // Persistência das Configurações
+  const saveEmpresa = async () => {
+    try {
+      await fetch('/api/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ empresa }),
+      })
+    } catch (e) { console.error('Erro ao salvar empresa:', e) }
+  }
+  const saveSistema = async () => {
+    try {
+      await fetch('/api/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sistema: sistemaCfg }),
+      })
+    } catch (e) { console.error('Erro ao salvar sistema:', e) }
+  }
+  const saveImpressao = async () => {
+    try {
+      await fetch('/api/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ impressao }),
+      })
+    } catch (e) { console.error('Erro ao salvar impressão:', e) }
+  }
+  const saveSeguranca = async () => {
+    try {
+      await fetch('/api/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seguranca }),
+      })
+    } catch (e) { console.error('Erro ao salvar segurança:', e) }
   }
 
-  const handleDeleteStatus = (id: string) => {
-    setStatusList(statusList.filter(s => s.id !== id))
+  // Upload da Logo (Impressão)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [cropOpen, setCropOpen] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [imageSrc, setImageSrc] = useState<string>('')
+  const [imgNatural, setImgNatural] = useState<{w:number,h:number} | null>(null)
+  const [zoom, setZoom] = useState<number>(1)
+  const [posX, setPosX] = useState<number>(50)
+  const [posY, setPosY] = useState<number>(50)
+
+  const triggerLogoUpload = () => fileInputRef.current?.click()
+
+  const onLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    // Validação de tipo e tamanho
+    const allowed = ['image/png','image/jpeg','image/webp','image/svg+xml']
+    if (!allowed.includes(file.type)) {
+      toast.error('Formato inválido. Envie PNG, JPG ou WebP (SVG opcional).')
+      e.target.value = ''
+      return
+    }
+    const maxSizeMB = 4
+    if (file.size > maxSizeMB * 1024 * 1024) {
+      toast.error(`Arquivo muito grande. Máximo ${maxSizeMB}MB.`)
+      e.target.value = ''
+      return
+    }
+    // SVG: não recortamos/redimensionamos; envia direto
+    if (file.type === 'image/svg+xml') {
+      try {
+        setUploadingLogo(true)
+        const form = new FormData()
+        form.append('file', file)
+        const res = await fetch('/api/uploads/logo', { method: 'POST', body: form })
+        if (!res.ok) throw new Error('Falha no upload da logo')
+        const data = await res.json()
+        const url = data?.url as string
+        if (url) {
+          setImpressao((prev) => ({ ...prev, logoUrl: url }))
+          await fetch('/api/config', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ impressao: { ...impressao, logoUrl: url } }),
+          })
+          toast.success('Logo enviada com sucesso!')
+        }
+      } catch (err) {
+        console.error('Erro ao enviar logo:', err)
+        toast.error('Não foi possível enviar a logo.')
+      } finally {
+        setUploadingLogo(false)
+        if (fileInputRef.current) fileInputRef.current.value = ''
+      }
+      return
+    }
+
+    // Para PNG/JPEG/WEBP: abrir modal de recorte
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const src = String(ev.target?.result || '')
+      setImageSrc(src)
+      setSelectedFile(file)
+      setZoom(1)
+      setPosX(50)
+      setPosY(50)
+      setCropOpen(true)
+      // carregar dimensões naturais
+      const img = new Image()
+      img.onload = () => setImgNatural({ w: img.naturalWidth, h: img.naturalHeight })
+      img.src = src
+    }
+    reader.readAsDataURL(file)
+  }
+
+  // Gera um Blob 512x512 a partir do recorte atual
+  const renderCroppedBlob = async (): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      if (!imageSrc || !imgNatural) return reject(new Error('Imagem não carregada'))
+      const img = new Image()
+      img.onload = () => {
+        const CANVAS_SIZE = 512
+        const canvas = document.createElement('canvas')
+        canvas.width = CANVAS_SIZE
+        canvas.height = CANVAS_SIZE
+        const ctx = canvas.getContext('2d')!
+        ctx.clearRect(0,0,CANVAS_SIZE,CANVAS_SIZE)
+
+        const { w: iw, h: ih } = imgNatural
+        // escala base para cobrir o quadrado
+        const baseScale = Math.max(CANVAS_SIZE / iw, CANVAS_SIZE / ih)
+        const scale = baseScale * zoom
+        const drawW = iw * scale
+        const drawH = ih * scale
+        const maxOffsetX = Math.max(0, (drawW - CANVAS_SIZE) / 2)
+        const maxOffsetY = Math.max(0, (drawH - CANVAS_SIZE) / 2)
+        const offsetX = ((posX - 50) / 50) * maxOffsetX
+        const offsetY = ((posY - 50) / 50) * maxOffsetY
+        const dx = (CANVAS_SIZE - drawW) / 2 - offsetX
+        const dy = (CANVAS_SIZE - drawH) / 2 - offsetY
+        ctx.drawImage(img, dx, dy, drawW, drawH)
+        canvas.toBlob((blob) => {
+          if (!blob) return reject(new Error('Falha ao gerar imagem'))
+          resolve(blob)
+        }, 'image/webp', 0.9)
+      }
+      img.onerror = reject
+      img.src = imageSrc
+    })
+  }
+
+  const handleConfirmCropAndUpload = async () => {
+    try {
+      setUploadingLogo(true)
+      const blob = await renderCroppedBlob()
+      const form = new FormData()
+      form.append('file', new File([blob], (selectedFile?.name || 'logo') + '.webp', { type: 'image/webp' }))
+      const res = await fetch('/api/uploads/logo', { method: 'POST', body: form })
+      if (!res.ok) throw new Error('Falha no upload da logo')
+      const data = await res.json()
+      const url = data?.url as string
+      if (url) {
+        setImpressao((prev) => ({ ...prev, logoUrl: url }))
+        await fetch('/api/config', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ impressao: { ...impressao, logoUrl: url } }),
+        })
+      }
+      toast.success('Logo recortada e enviada!')
+      setCropOpen(false)
+      setSelectedFile(null)
+      setImageSrc('')
+    } catch (err) {
+      console.error(err)
+      toast.error('Não foi possível processar a logo.')
+    } finally {
+      setUploadingLogo(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  // Ações Topo
+  const handleBackup = async () => {
+    try {
+      const res = await fetch('/api/backup')
+      if (!res.ok) return
+      const data = await res.json()
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `backup-liontech-${new Date().toISOString().slice(0,10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error('Erro ao gerar backup:', e)
+    }
+  }
+
+  const openSystemInfo = async () => {
+    try {
+      const res = await fetch('/api/health')
+      const info = res.ok ? await res.json() : null
+      setSystemInfo(info)
+    } catch (e) {
+      console.error('Erro ao carregar informações do sistema:', e)
+    } finally {
+      setShowSystemDialog(true)
+    }
+  }
+
+  const handleDeleteCategory = async (id: string) => {
+    try {
+      await fetch(`/api/categorias/${id}`, { method: 'DELETE' })
+      setCategorias(categorias.filter(c => c.id !== id))
+    } catch (e) {
+      console.error('Erro ao excluir categoria:', e)
+    }
+  }
+
+  const handleDeleteStatus = async (id: string) => {
+    try {
+      await fetch(`/api/status/${id}`, { method: 'DELETE' })
+      setStatusList(statusList.filter(s => s.id !== id))
+    } catch (e) {
+      console.error('Erro ao excluir status:', e)
+    }
   }
 
   return (
@@ -365,16 +677,33 @@ export default function ConfiguracoesPage() {
           <p className="text-slate-500 mt-1">Gerencie usuários, categorias e status do sistema</p>
         </div>
         <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handleBackup}>
             <Database className="w-4 h-4 mr-2" />
             Backup
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={openSystemInfo}>
             <Settings className="w-4 h-4 mr-2" />
             Sistema
           </Button>
         </div>
       </div>
+
+      {/* Dialog: Informações do Sistema */}
+      <Dialog open={showSystemDialog} onOpenChange={setShowSystemDialog}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>Informações do Sistema</DialogTitle>
+            <DialogDescription>Ambiente e status da API</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            {systemInfo ? (
+              <pre className="bg-slate-50 p-4 rounded border overflow-auto max-h-80">{JSON.stringify(systemInfo, null, 2)}</pre>
+            ) : (
+              <p>Carregando...</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-4">
@@ -833,25 +1162,25 @@ export default function ConfiguracoesPage() {
               <CardContent className="space-y-4">
                 <div className="grid gap-2">
                   <Label htmlFor="empresa">Nome da Empresa</Label>
-                  <Input id="empresa" defaultValue="Lion Tech" />
+                  <Input id="empresa" value={empresa.nome} onChange={(e) => setEmpresa({ ...empresa, nome: e.target.value })} />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="cnpj">CNPJ</Label>
-                  <Input id="cnpj" placeholder="00.000.000/0000-00" />
+                  <Input id="cnpj" placeholder="00.000.000/0000-00" value={empresa.cnpj} onChange={(e) => setEmpresa({ ...empresa, cnpj: e.target.value })} />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="telefone">Telefone</Label>
-                  <Input id="telefone" defaultValue="(11) 9999-9999" />
+                  <Input id="telefone" value={empresa.telefone} onChange={(e) => setEmpresa({ ...empresa, telefone: e.target.value })} />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="email">E-mail</Label>
-                  <Input id="email" type="email" defaultValue="contato@liontech.com.br" />
+                  <Input id="email" type="email" value={empresa.email} onChange={(e) => setEmpresa({ ...empresa, email: e.target.value })} />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="endereco">Endereço</Label>
-                  <Input id="endereco" defaultValue="São Paulo - SP" />
+                  <Input id="endereco" value={empresa.endereco} onChange={(e) => setEmpresa({ ...empresa, endereco: e.target.value })} />
                 </div>
-                <Button className="w-full">
+                <Button className="w-full" onClick={saveEmpresa}>
                   <Save className="w-4 h-4 mr-2" />
                   Salvar Informações
                 </Button>
@@ -873,32 +1202,32 @@ export default function ConfiguracoesPage() {
                     <Label>Notificações por E-mail</Label>
                     <p className="text-sm text-slate-500">Reber alertas sobre novas ordens</p>
                   </div>
-                  <Switch defaultChecked />
+                  <Switch checked={sistemaCfg.notificacoesEmail} onCheckedChange={(v) => setSistemaCfg({ ...sistemaCfg, notificacoesEmail: v })} />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
                     <Label>Backup Automático</Label>
                     <p className="text-sm text-slate-500">Salvar dados automaticamente</p>
                   </div>
-                  <Switch defaultChecked />
+                  <Switch checked={sistemaCfg.backupAutomatico} onCheckedChange={(v) => setSistemaCfg({ ...sistemaCfg, backupAutomatico: v })} />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
                     <Label>Modo Escuro</Label>
                     <p className="text-sm text-slate-500">Usar tema escuro na interface</p>
                   </div>
-                  <Switch />
+                  <Switch checked={sistemaCfg.modoEscuro} onCheckedChange={(v) => setSistemaCfg({ ...sistemaCfg, modoEscuro: v })} />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
                     <Label>Confirmação de Ações</Label>
                     <p className="text-sm text-slate-500">Pedir confirmação para ações críticas</p>
                   </div>
-                  <Switch defaultChecked />
+                  <Switch checked={sistemaCfg.confirmacaoAcoes} onCheckedChange={(v) => setSistemaCfg({ ...sistemaCfg, confirmacaoAcoes: v })} />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="moeda">Moeda Padrão</Label>
-                  <Select defaultValue="BRL">
+                  <Select value={sistemaCfg.moedaPadrao} onValueChange={(v: any) => setSistemaCfg({ ...sistemaCfg, moedaPadrao: v })}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -909,7 +1238,7 @@ export default function ConfiguracoesPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <Button className="w-full">
+                <Button className="w-full" onClick={saveSistema}>
                   <Save className="w-4 h-4 mr-2" />
                   Salvar Configurações
                 </Button>
@@ -926,30 +1255,133 @@ export default function ConfiguracoesPage() {
                 <CardDescription>Personalize documentos e relatórios</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Logo da empresa para impressão */}
+                <div className="grid md:grid-cols-[120px_1fr] items-center gap-4">
+                  <div className="flex items-center justify-center w-28 h-28 rounded border bg-slate-50 overflow-hidden">
+                    {impressao.logoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={impressao.logoUrl} alt="Logo" className="max-w-full max-h-full object-contain" />
+                    ) : (
+                      <span className="text-xs text-slate-400 text-center px-2">Prévia da logo</span>
+                    )}
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="logoUrl">Logo (URL) opcional</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="logoUrl"
+                        placeholder="https://.../minha-logo.png"
+                        value={impressao.logoUrl || ''}
+                        onChange={(e) => setImpressao({ ...impressao, logoUrl: e.target.value })}
+                      />
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                        className="hidden"
+                        onChange={onLogoFileChange}
+                      />
+                      <Button type="button" variant="outline" onClick={triggerLogoUpload} disabled={uploadingLogo}>
+                        {uploadingLogo ? 'Enviando...' : 'Upload'}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => setImpressao({ ...impressao, logoUrl: '' })}
+                      >
+                        Limpar
+                      </Button>
+                    </div>
+                    <p className="text-xs text-slate-500">Você pode colar uma URL direta ou fazer upload.</p>
+                  </div>
+                </div>
+                {/* Modal de recorte da logo */}
+                <Dialog open={cropOpen} onOpenChange={setCropOpen}>
+                  <DialogContent className="max-w-lg">
+                    <DialogHeader>
+                      <DialogTitle>Recortar e centralizar logo</DialogTitle>
+                      <DialogDescription>
+                        Ajuste o enquadramento. A imagem será enviada em 512×512 px.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="w-full flex justify-center">
+                        <div className="relative w-[280px] h-[280px] rounded-md border bg-slate-50 overflow-hidden">
+                          {imageSrc && imgNatural ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={imageSrc}
+                              alt="Prévia"
+                              style={(function(){
+                                const PREV = 280
+                                const base = Math.max(PREV / imgNatural.w, PREV / imgNatural.h)
+                                const s = base * zoom
+                                const drawW = imgNatural.w * s
+                                const drawH = imgNatural.h * s
+                                const maxOx = Math.max(0,(drawW - PREV) / 2)
+                                const maxOy = Math.max(0,(drawH - PREV) / 2)
+                                const ox = ((posX - 50)/50) * maxOx
+                                const oy = ((posY - 50)/50) * maxOy
+                                const left = (PREV - drawW)/2 - ox
+                                const top = (PREV - drawH)/2 - oy
+                                return { position:'absolute' as const, left, top, width: drawW, height: drawH }
+                              })()}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-slate-400 text-sm">Carregando imagem…</div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="grid gap-3">
+                        <div>
+                          <Label>Zoom</Label>
+                          <input type="range" min={1} max={3} step={0.01} value={zoom} onChange={(e)=>setZoom(parseFloat(e.target.value))} className="w-full" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label>Horizontal</Label>
+                            <input type="range" min={0} max={100} step={1} value={posX} onChange={(e)=>setPosX(parseInt(e.target.value))} className="w-full" />
+                          </div>
+                          <div>
+                            <Label>Vertical</Label>
+                            <input type="range" min={0} max={100} step={1} value={posY} onChange={(e)=>setPosY(parseInt(e.target.value))} className="w-full" />
+                          </div>
+                        </div>
+                        <div className="flex gap-2 justify-between">
+                          <Button type="button" variant="outline" onClick={()=>{ setPosX(50); setPosY(50); setZoom(1); }}>Centralizar</Button>
+                          <div className="flex gap-2">
+                            <Button type="button" variant="ghost" onClick={()=> setCropOpen(false)}>Cancelar</Button>
+                            <Button type="button" onClick={handleConfirmCropAndUpload} disabled={uploadingLogo}>{uploadingLogo? 'Enviando…' : 'Aplicar e Enviar'}</Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
                 <div className="flex items-center justify-between">
                   <div>
                     <Label>Cabeçalho em Ordens</Label>
                     <p className="text-sm text-slate-500">Incluir cabeçalho nas OS</p>
                   </div>
-                  <Switch defaultChecked />
+                  <Switch checked={impressao.cabecalhoOrdens} onCheckedChange={(v) => setImpressao({ ...impressao, cabecalhoOrdens: v })} />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
                     <Label>Rodapé Personalizado</Label>
                     <p className="text-sm text-slate-500">Incluir rodapé com informações</p>
                   </div>
-                  <Switch defaultChecked />
+                  <Switch checked={impressao.rodapeHabilitado} onCheckedChange={(v) => setImpressao({ ...impressao, rodapeHabilitado: v })} />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
                     <Label>Código de Barras</Label>
                     <p className="text-sm text-slate-500">Gerar código para as OS</p>
                   </div>
-                  <Switch />
+                  <Switch checked={impressao.codigoBarras} onCheckedChange={(v) => setImpressao({ ...impressao, codigoBarras: v })} />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="papel">Tamanho do Papel</Label>
-                  <Select defaultValue="A4">
+                  <Select value={impressao.tamanhoPapel} onValueChange={(v: any) => setImpressao({ ...impressao, tamanhoPapel: v })}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -960,7 +1392,7 @@ export default function ConfiguracoesPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <Button className="w-full">
+                <Button className="w-full" onClick={saveImpressao}>
                   <Save className="w-4 h-4 mr-2" />
                   Salvar Configurações
                 </Button>
@@ -982,25 +1414,25 @@ export default function ConfiguracoesPage() {
                     <Label>Autenticação em Dois Fatores</Label>
                     <p className="text-sm text-slate-500">Exigir 2FA para todos os usuários</p>
                   </div>
-                  <Switch />
+                  <Switch checked={seguranca.doisFatores} onCheckedChange={(v) => setSeguranca({ ...seguranca, doisFatores: v })} />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
                     <Label>Expiração de Senha</Label>
                     <p className="text-sm text-slate-500">Trocar senha a cada 90 dias</p>
                   </div>
-                  <Switch />
+                  <Switch checked={seguranca.expiracaoSenha} onCheckedChange={(v) => setSeguranca({ ...seguranca, expiracaoSenha: v })} />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
                     <Label>Log de Atividades</Label>
                     <p className="text-sm text-slate-500">Registrar todas as ações</p>
                   </div>
-                  <Switch defaultChecked />
+                  <Switch checked={seguranca.logAtividades} onCheckedChange={(v) => setSeguranca({ ...seguranca, logAtividades: v })} />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="sessao">Tempo de Sessão</Label>
-                  <Select defaultValue="8h">
+                  <Select value={seguranca.sessao} onValueChange={(v: any) => setSeguranca({ ...seguranca, sessao: v })}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -1012,7 +1444,7 @@ export default function ConfiguracoesPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <Button className="w-full">
+                <Button className="w-full" onClick={saveSeguranca}>
                   <Save className="w-4 h-4 mr-2" />
                   Salvar Configurações
                 </Button>
