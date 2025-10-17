@@ -758,20 +758,20 @@ export default function ConfiguracoesPage() {
       {/* Dialog: Informações do Sistema removido */}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="usuarios" className="flex items-center space-x-2">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-2">
+          <TabsTrigger value="usuarios" className="flex items-center justify-center sm:justify-start space-x-2 text-sm whitespace-nowrap">
             <Users className="w-4 h-4" />
             <span>Usuários</span>
           </TabsTrigger>
-          <TabsTrigger value="categorias" className="flex items-center space-x-2">
+          <TabsTrigger value="categorias" className="flex items-center justify-center sm:justify-start space-x-2 text-sm whitespace-nowrap">
             <Tag className="w-4 h-4" />
             <span>Categorias</span>
           </TabsTrigger>
-          <TabsTrigger value="status" className="flex items-center space-x-2">
+          <TabsTrigger value="status" className="flex items-center justify-center sm:justify-start space-x-2 text-sm whitespace-nowrap">
             <CheckCircle className="w-4 h-4" />
             <span>Status</span>
           </TabsTrigger>
-          <TabsTrigger value="geral" className="flex items-center space-x-2">
+          <TabsTrigger value="geral" className="flex items-center justify-center sm:justify-start space-x-2 text-sm whitespace-nowrap">
             <Settings className="w-4 h-4" />
             <span>Geral</span>
           </TabsTrigger>
@@ -909,14 +909,14 @@ export default function ConfiguracoesPage() {
             <CardContent>
               <div className="space-y-4">
                 {usuarios.map((usuario) => (
-                  <div key={usuario.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-slate-50">
-                    <div className="flex items-center space-x-4">
-                      <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold">
+                  <div key={usuario.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border rounded-lg hover:bg-slate-50">
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0">
                         {usuario.nome.charAt(0)}
                       </div>
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <span className="font-medium">{usuario.nome}</span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium truncate max-w-full">{usuario.nome}</span>
                           <Badge className={getNivelColor(usuario.nivel)}>
                             {usuario.nivel === 'admin' ? 'Admin' : 
                              usuario.nivel === 'gerente' ? 'Gerente' :
@@ -926,19 +926,17 @@ export default function ConfiguracoesPage() {
                             {usuario.status === 'ativo' ? 'Ativo' : 'Inativo'}
                           </Badge>
                         </div>
-                        <div className="text-sm text-slate-500">
+                        <div className="text-sm text-slate-500 break-words">
                           {usuario.usuario ? `${usuario.usuario} • ${usuario.email} • ${usuario.cargo}` : `${usuario.email} • ${usuario.cargo}`}
                         </div>
-                        <div className="text-xs text-slate-400">
-                          Criado em {usuario.dataCriacao} • Último acesso: {usuario.ultimoAcesso}
-                        </div>
+                        <div className="text-xs text-slate-400">Criado em {usuario.dataCriacao} • Último acesso: {usuario.ultimoAcesso}</div>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Button variant="outline" size="sm" onClick={() => handleEditUser(usuario)}>
+                    <div className="flex items-center gap-2 self-end sm:self-auto">
+                      <Button aria-label="Editar usuário" variant="outline" size="icon" onClick={() => handleEditUser(usuario)}>
                         <Edit className="w-4 h-4" />
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => handleDeleteUser(usuario.id)}>
+                      <Button aria-label="Excluir usuário" variant="outline" size="icon" onClick={() => handleDeleteUser(usuario.id)}>
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
@@ -1033,17 +1031,17 @@ export default function ConfiguracoesPage() {
             <CardContent>
               <div className="grid gap-4">
                 {categorias.map((categoria) => (
-                  <div key={categoria.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-slate-50">
-                    <div className="flex items-center space-x-4">
+                  <div key={categoria.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border rounded-lg hover:bg-slate-50">
+                    <div className="flex items-center gap-4 min-w-0">
                       <div 
-                        className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold"
+                        className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold flex-shrink-0"
                         style={{ backgroundColor: categoria.cor }}
                       >
                         <Tag className="w-5 h-5" />
                       </div>
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <span className="font-medium">{categoria.nome}</span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium truncate max-w-full">{categoria.nome}</span>
                           <Badge variant={categoria.ativa ? 'default' : 'secondary'}>
                             {categoria.ativa ? 'Ativa' : 'Inativa'}
                           </Badge>
@@ -1051,14 +1049,14 @@ export default function ConfiguracoesPage() {
                             {categoria.quantidadeOS} OS
                           </Badge>
                         </div>
-                        <div className="text-sm text-slate-500">{categoria.descricao}</div>
+                        <div className="text-sm text-slate-500 break-words">{categoria.descricao}</div>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Button variant="outline" size="sm" onClick={() => handleEditCategory(categoria)}>
+                    <div className="flex items-center gap-2 self-end sm:self-auto">
+                      <Button aria-label="Editar categoria" variant="outline" size="icon" onClick={() => handleEditCategory(categoria)}>
                         <Edit className="w-4 h-4" />
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => handleDeleteCategory(categoria.id)}>
+                      <Button aria-label="Excluir categoria" variant="outline" size="icon" onClick={() => handleDeleteCategory(categoria.id)}>
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
@@ -1179,10 +1177,10 @@ export default function ConfiguracoesPage() {
                 {statusList
                   .sort((a, b) => a.ordem - b.ordem)
                   .map((status) => (
-                  <div key={status.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-slate-50">
-                    <div className="flex items-center space-x-4">
+                  <div key={status.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border rounded-lg hover:bg-slate-50">
+                    <div className="flex items-center gap-4 min-w-0">
                       <div 
-                        className="w-10 h-10 rounded-lg flex items-center justify-center text-white"
+                        className="w-10 h-10 rounded-lg flex items-center justify-center text-white flex-shrink-0"
                         style={{ backgroundColor: status.cor }}
                       >
                         {status.tipo === 'inicial' && <Clock className="w-5 h-5" />}
@@ -1190,9 +1188,9 @@ export default function ConfiguracoesPage() {
                         {status.tipo === 'final' && <CheckCircle className="w-5 h-5" />}
                         {status.tipo === 'cancelado' && <XCircle className="w-5 h-5" />}
                       </div>
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <span className="font-medium">{status.nome}</span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium truncate max-w-full">{status.nome}</span>
                           <Badge className={getTipoColor(status.tipo)}>
                             {status.tipo === 'inicial' ? 'Inicial' :
                              status.tipo === 'andamento' ? 'Andamento' :
@@ -1201,14 +1199,14 @@ export default function ConfiguracoesPage() {
                           {status.padrao && <Badge variant="outline">Padrão</Badge>}
                           <Badge variant="outline">Ordem {status.ordem}</Badge>
                         </div>
-                        <div className="text-sm text-slate-500">{status.descricao}</div>
+                        <div className="text-sm text-slate-500 break-words">{status.descricao}</div>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Button variant="outline" size="sm" onClick={() => handleEditStatus(status)}>
+                    <div className="flex items-center gap-2 self-end sm:self-auto">
+                      <Button aria-label="Editar status" variant="outline" size="icon" onClick={() => handleEditStatus(status)}>
                         <Edit className="w-4 h-4" />
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => handleDeleteStatus(status.id)}>
+                      <Button aria-label="Excluir status" variant="outline" size="icon" onClick={() => handleDeleteStatus(status.id)}>
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>

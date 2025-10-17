@@ -650,7 +650,7 @@ export default function OrdensServicoPage() {
         <div className="max-w-4xl mx-auto">
           <Card className="shadow-lg">
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <CardTitle className="flex items-center space-x-2">
                     <Wrench className="w-5 h-5" />
@@ -720,6 +720,7 @@ export default function OrdensServicoPage() {
                         value={formData.clienteWhatsapp}
                         onChange={(e) => setFormData({ ...formData, clienteWhatsapp: maskWhatsapp(e.target.value) })}
                         inputMode="numeric"
+                        pattern="[0-9]*"
                         required
                       />
                     </div>
@@ -1067,13 +1068,13 @@ export default function OrdensServicoPage() {
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+          <div className="flex flex-wrap items-center justify-between gap-2 h-auto py-2 sm:h-16">
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
                   <Wrench className="w-5 h-5 text-white" />
                 </div>
-                <h1 className="text-xl font-bold text-slate-900">Lion Tech - Ordens de Serviço</h1>
+                <h1 className="text-lg sm:text-xl font-bold text-slate-900">Lion Tech - Ordens de Serviço</h1>
               </div>
             </div>
             
@@ -1166,15 +1167,15 @@ export default function OrdensServicoPage() {
                 {filteredOrdens.map((os) => (
                   <div 
                     key={os.id}
-                    className="p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
+                    className="p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors border border-slate-200"
                   >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center space-x-3">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-3">
+                      <div className="flex items-start sm:items-center gap-3 min-w-0">
                         <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
                           {getCategoriaIcon(os.categoria)}
                         </div>
-                        <div>
-                          <div className="flex items-center space-x-2 mb-1">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 mb-1">
                             <span className="font-medium text-slate-900">{os.numeroOS}</span>
                             <Badge className={getStatusColor(os.status)}>
                               {os.status}
@@ -1186,23 +1187,25 @@ export default function OrdensServicoPage() {
                               </Badge>
                             )}
                           </div>
-                          <p className="text-sm text-slate-600">{os.clienteNome} - {os.equipamentoModelo}</p>
+                          <p className="text-sm text-slate-600 break-words sm:truncate sm:max-w-[60ch]">{os.clienteNome} - {os.equipamentoModelo}</p>
                         </div>
                       </div>
                       
-                      <div className="flex items-center space-x-2">
+                      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                         <Button 
                           variant="outline" 
-                          size="sm"
+                          size="icon"
                           onClick={() => handlePrint(os)}
+                          aria-label="Imprimir O.S."
                           className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                         >
                           <Printer className="w-4 h-4" />
                         </Button>
                         <Button 
                           variant="outline" 
-                          size="sm"
+                          size="icon"
                           onClick={() => handleSendWhatsApp(os)}
+                          aria-label="Enviar WhatsApp"
                           className="text-green-600 hover:text-green-700 hover:bg-green-50"
                         >
                           <Phone className="w-4 h-4" />
@@ -1210,8 +1213,9 @@ export default function OrdensServicoPage() {
                         {os.status !== 'Concluído' && os.status !== 'Entregue' && (
                           <Button 
                             variant="outline" 
-                            size="sm"
+                            size="icon"
                             onClick={() => handleFinalizarOS(os.id)}
+                            aria-label="Finalizar O.S."
                             className="text-green-600 hover:text-green-700 hover:bg-green-50"
                           >
                             <CheckCircle className="w-4 h-4" />
@@ -1219,15 +1223,17 @@ export default function OrdensServicoPage() {
                         )}
                         <Button 
                           variant="outline" 
-                          size="sm"
+                          size="icon"
                           onClick={() => handleEdit(os)}
+                          aria-label="Editar O.S."
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
                         <Button 
                           variant="outline" 
-                          size="sm"
+                          size="icon"
                           onClick={() => handleDelete(os.id)}
+                          aria-label="Excluir O.S."
                           className="text-red-600 hover:text-red-700 hover:bg-red-50"
                         >
                           <Trash2 className="w-4 h-4" />

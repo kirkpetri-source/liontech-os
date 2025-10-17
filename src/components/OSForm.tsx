@@ -211,7 +211,7 @@ export default function OSForm({ onClose, onSave }: OSFormProps) {
       <div className="max-w-4xl mx-auto">
         <Card className="shadow-lg">
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div>
                 <CardTitle className="flex items-center space-x-2">
                   <Wrench className="w-5 h-5" />
@@ -225,6 +225,7 @@ export default function OSForm({ onClose, onSave }: OSFormProps) {
                 variant="outline" 
                 size="sm"
                 onClick={onClose}
+                className="w-full sm:w-auto"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Voltar
@@ -256,6 +257,7 @@ export default function OSForm({ onClose, onSave }: OSFormProps) {
                       value={formData.clienteWhatsapp}
                       onChange={(e) => setFormData({ ...formData, clienteWhatsapp: maskWhatsapp(e.target.value) })}
                       inputMode="numeric"
+                      pattern="[0-9]*"
                       required
                     />
                   </div>
@@ -552,7 +554,7 @@ export default function OSForm({ onClose, onSave }: OSFormProps) {
               </div>
 
               <div className="flex space-x-3 pt-4">
-                <Button type="submit" className="flex-1">
+                <Button type="submit" className="flex-1 w-full sm:w-auto">
                   <Save className="w-4 h-4 mr-2" />
                   Criar O.S.
                 </Button>
@@ -560,6 +562,7 @@ export default function OSForm({ onClose, onSave }: OSFormProps) {
                   type="button" 
                   variant="outline"
                   onClick={onClose}
+                  className="w-full sm:w-auto"
                 >
                   Cancelar
                 </Button>

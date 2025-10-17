@@ -39,6 +39,7 @@ export function LoginPage() {
                   value={loginData.usuario}
                   onChange={(e) => setLoginData({ ...loginData, usuario: e.target.value })}
                   className="pl-10"
+                  autoComplete="username"
                   required
                 />
               </div>
@@ -55,6 +56,7 @@ export function LoginPage() {
                   value={loginData.senha}
                   onChange={(e) => setLoginData({ ...loginData, senha: e.target.value })}
                   className="pl-10"
+                  autoComplete="current-password"
                   required
                 />
               </div>

@@ -131,7 +131,7 @@ export default function ClientesPage() {
         <div className="max-w-2xl mx-auto">
           <Card className="shadow-lg">
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <CardTitle className="flex items-center space-x-2">
                     <User className="w-5 h-5" />
@@ -180,6 +180,8 @@ export default function ClientesPage() {
                         ...formData, 
                         whatsapp: formatWhatsApp(e.target.value) 
                       })}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       required
                     />
                     <p className="text-sm text-slate-500">
@@ -218,13 +220,13 @@ export default function ClientesPage() {
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+          <div className="flex flex-wrap items-center justify-between gap-2 h-auto py-2 sm:h-16">
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
                   <User className="w-5 h-5 text-white" />
                 </div>
-                <h1 className="text-xl font-bold text-slate-900">Lion Tech - Clientes</h1>
+                <h1 className="text-lg sm:text-xl font-bold text-slate-900">Lion Tech - Clientes</h1>
               </div>
             </div>
             
@@ -331,15 +333,15 @@ export default function ClientesPage() {
                 {filteredClientes.map((cliente) => (
                   <div 
                     key={cliente.id}
-                    className="flex items-center justify-between p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
+                    className="flex flex-wrap items-start justify-between gap-3 p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
                   >
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center space-x-3 mb-2">
                         <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
                           <User className="w-5 h-5 text-blue-600" />
                         </div>
-                        <div>
-                          <h3 className="font-medium text-slate-900">{cliente.nome}</h3>
+                        <div className="min-w-0">
+                          <h3 className="font-medium text-slate-900 truncate max-w-[60vw] sm:max-w-none">{cliente.nome}</h3>
                           <p className="text-sm text-slate-500">Cliente desde {cliente.createdAt}</p>
                         </div>
                       </div>
@@ -351,7 +353,7 @@ export default function ClientesPage() {
                       </div>
                     </div>
                     
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center gap-2 shrink-0">
                       <Button 
                         variant="outline" 
                         size="sm"

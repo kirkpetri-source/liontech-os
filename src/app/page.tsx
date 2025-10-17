@@ -158,32 +158,32 @@ export default function Home() {
   // Removido indicador de prioridade (não há campo correspondente nas O.S.)
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <div className="min-h-screen overflow-x-hidden bg-gradient-to-br from-slate-50 to-slate-100">
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+          <div className="flex flex-wrap items-center justify-between gap-2 h-auto py-2 sm:h-16">
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
                   <Wrench className="w-5 h-5 text-white" />
                 </div>
-                <h1 className="text-xl font-bold text-slate-900">Lion Tech</h1>
+                <h1 className="text-lg sm:text-xl font-bold text-slate-900">Lion Tech</h1>
               </div>
               <span className="text-sm text-slate-500 hidden sm:inline">Sistema de Gestão</span>
             </div>
             
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-slate-600">
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              <span className="text-sm text-slate-600 hidden sm:inline">
                 Bem-vindo, {user.email}
               </span>
               <Button variant="outline" size="sm" onClick={logout}>
-                <LogOut className="w-4 h-4 mr-2" />
-                Sair
+                <LogOut className="w-4 h-4 mr-0 sm:mr-2" />
+                <span className="hidden sm:inline">Sair</span>
               </Button>
               <Button variant="outline" size="sm">
-                <Search className="w-4 h-4 mr-2" />
-                Buscar
+                <Search className="w-4 h-4 mr-0 sm:mr-2" />
+                <span className="hidden sm:inline">Buscar</span>
               </Button>
               <Button size="sm" onClick={() => setShowOSForm(true)}>
                 <Plus className="w-4 h-4 mr-2" />
@@ -197,7 +197,7 @@ export default function Home() {
       {/* Navigation */}
       <nav className="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex space-x-8">
+          <div className="flex overflow-x-auto whitespace-nowrap -mx-4 px-4 sm:mx-0 sm:px-0 space-x-4 sm:space-x-8">
             {[
               { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
               { id: 'clientes', label: 'Clientes', icon: Users },
@@ -208,7 +208,7 @@ export default function Home() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                className={`flex items-center space-x-2 py-3 sm:py-4 px-2 border-b-2 font-medium text-xs sm:text-sm transition-colors ${
                   activeTab === tab.id
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
