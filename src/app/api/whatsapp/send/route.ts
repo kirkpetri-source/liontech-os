@@ -165,6 +165,53 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Config WhatsApp ausente (token/phone id)' }, { status: 500 })
     }
 
+    // Opcional: envia mensagem de template para iniciar conversa fora da janela de 24h
+    const templateName = process.env.WHATSAPP_TEMPLATE_NAME
+    const templateLang = process.env.WHATSAPP_TEMPLATE_LANG || 'pt_BR'
+    if (templateName) {
+      try {
+        const previsao = os.previsaoEntrega
+          ? (String(os.previsaoEntrega).includes('T')
+              ? new Date(os.previsaoEntrega).toLocaleString('pt-BR')
+              : new Date(os.previsaoEntrega).toLocaleDateString('pt-BR'))
+          : 'Não definida'
+
+        const tplRes = await fetch(`https://graph.facebook.com/v20.0/${phoneId}/messages`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            to,
+            type: 'template',
+            template: {
+              name: templateName,
+              language: { code: templateLang },
+              components: [
+                {
+                  type: 'body',
+                  parameters: [
+                    { type: 'text', text: String(os.numeroOS || '') },
+                    { type: 'text', text: String(os.status || '') },
+                    { type: 'text', text: String(previsao || '') }
+                  ]
+                }
+              ]
+            }
+          })
+        })
+        if (!tplRes.ok) {
+          // Não aborta o fluxo; seguimos para enviar o PDF
+          const err = await tplRes.text().catch(() => '')
+          console.warn('Falha ao enviar template WhatsApp:', err)
+        }
+      } catch (e) {
+        console.warn('Erro ao tentar enviar template WhatsApp:', e)
+      }
+    }
+
     // Gera PDF
     const html = buildHtml(os, empresa, imp)
     const browser = await puppeteer.launch({ args: ['--no-sandbox'], headless: true })
