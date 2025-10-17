@@ -253,11 +253,12 @@ export default function OSForm({ onClose, onSave }: OSFormProps) {
                     <Label htmlFor="clienteWhatsapp">WhatsApp *</Label>
                     <Input
                       id="clienteWhatsapp"
+                      type="tel"
                       placeholder="(00) 00000-0000"
                       value={formData.clienteWhatsapp}
                       onChange={(e) => setFormData({ ...formData, clienteWhatsapp: maskWhatsapp(e.target.value) })}
                       inputMode="numeric"
-                      pattern="[0-9]*"
+                      autoComplete="tel"
                       required
                     />
                   </div>

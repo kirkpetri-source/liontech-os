@@ -165,6 +165,19 @@ export default function ConfiguracoesPage() {
     sessao: '8h',
   })
 
+  // Integração WhatsApp (protegida)
+  const [whatsapp, setWhatsapp] = useState({
+    phoneId: '',
+    token: '',
+    templateName: '',
+    templateLang: 'pt_BR',
+  })
+  const [waUnlocked, setWaUnlocked] = useState(false)
+  const [waAdminKey, setWaAdminKey] = useState('')
+  const [waPassInput, setWaPassInput] = useState('')
+  const [showWaToken, setShowWaToken] = useState(false)
+  const [showWaPass, setShowWaPass] = useState(false)
+
   // Dialog do botão Sistema removido
 
   // Carregar dados iniciais (usuários, categorias, status, config)
@@ -270,6 +283,12 @@ export default function ConfiguracoesPage() {
             expiracaoSenha: !!cfg.seguranca?.expiracaoSenha,
             logAtividades: cfg.seguranca?.logAtividades ?? true,
             sessao: cfg.seguranca?.sessao || '8h',
+          })
+          if (cfg.whatsapp) setWhatsapp({
+            phoneId: cfg.whatsapp?.phoneId || '',
+            token: cfg.whatsapp?.token || '',
+            templateName: cfg.whatsapp?.templateName || '',
+            templateLang: cfg.whatsapp?.templateLang || 'pt_BR',
           })
         } else {
           if (res.status === 401) toast.error('Não autorizado. Faça login para ver configurações.')
@@ -556,6 +575,52 @@ export default function ConfiguracoesPage() {
         body: JSON.stringify({ seguranca }),
       })
     } catch (e) { console.error('Erro ao salvar segurança:', e) }
+  }
+
+  // Integração WhatsApp: desbloqueio e salvamento protegido
+  const unlockWhatsapp = async () => {
+    try {
+      const res = await fetch('/api/config/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: waPassInput })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && (data as any)?.ok) {
+        setWaUnlocked(true)
+        setWaAdminKey(waPassInput)
+        toast.success('Área de WhatsApp desbloqueada')
+      } else {
+        toast.error('Senha administrativa inválida')
+      }
+    } catch (e) {
+      console.error('Erro ao verificar senha administrativa:', e)
+      toast.error('Falha ao verificar senha administrativa')
+    }
+  }
+
+  const saveWhatsapp = async () => {
+    if (!waUnlocked) {
+      toast.error('Desbloqueie com a senha administrativa para salvar')
+      return
+    }
+    try {
+      const res = await fetch('/api/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': waAdminKey },
+        body: JSON.stringify({ whatsapp })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const msg = (data as any)?.error || 'Falha ao salvar integração WhatsApp'
+        toast.error(msg)
+        return
+      }
+      toast.success('Integração WhatsApp salva com sucesso!')
+    } catch (e) {
+      console.error('Erro ao salvar WhatsApp:', e)
+      toast.error('Erro ao salvar integração WhatsApp')
+    }
   }
 
   // Upload da Logo (Impressão)
@@ -1536,6 +1601,108 @@ export default function ConfiguracoesPage() {
                   <Save className="w-4 h-4 mr-2" />
                   Salvar Configurações
                 </Button>
+              </CardContent>
+            </Card>
+
+            {/* Integração WhatsApp */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Phone className="w-5 h-5" />
+                  <span>Integração WhatsApp</span>
+                </CardTitle>
+                <CardDescription>Configurar credenciais do WhatsApp Business (token, phone id e template)</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {!waUnlocked ? (
+                  <div className="grid gap-3 p-3 border rounded-md bg-slate-50">
+                    <div className="grid gap-1">
+                      <Label>Senha Administrativa</Label>
+                      <div className="relative">
+                        <Input
+                          type={showWaPass ? 'text' : 'password'}
+                          value={waPassInput}
+                          onChange={(e) => setWaPassInput(e.target.value)}
+                          placeholder="Digite a senha para desbloquear"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                          onClick={() => setShowWaPass(!showWaPass)}
+                        >
+                          {showWaPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        Se nenhuma senha estiver configurada, clique em desbloquear sem preencher.
+                      </p>
+                    </div>
+                    <div>
+                      <Button type="button" onClick={unlockWhatsapp}>
+                        <Key className="w-4 h-4 mr-2" />
+                        Desbloquear
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid gap-2">
+                      <Label htmlFor="waPhoneId">Phone ID</Label>
+                      <Input
+                        id="waPhoneId"
+                        value={whatsapp.phoneId}
+                        onChange={(e) => setWhatsapp({ ...whatsapp, phoneId: e.target.value })}
+                        placeholder="Ex.: 123456789012345"
+                      />
+                      <p className="text-xs text-slate-500">É o “Phone number ID” do WhatsApp Cloud; não é o número do telefone.</p>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="waToken">Access Token</Label>
+                      <div className="relative">
+                        <Input
+                          id="waToken"
+                          type={showWaToken ? 'text' : 'password'}
+                          value={whatsapp.token}
+                          onChange={(e) => setWhatsapp({ ...whatsapp, token: e.target.value })}
+                          placeholder="EAAG..."
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                          onClick={() => setShowWaToken(!showWaToken)}
+                        >
+                          {showWaToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="waTplName">Template Name (opcional)</Label>
+                      <Input
+                        id="waTplName"
+                        value={whatsapp.templateName}
+                        onChange={(e) => setWhatsapp({ ...whatsapp, templateName: e.target.value })}
+                        placeholder="Ex.: os_atualizacao"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="waTplLang">Template Language</Label>
+                      <Input
+                        id="waTplLang"
+                        value={whatsapp.templateLang}
+                        onChange={(e) => setWhatsapp({ ...whatsapp, templateLang: e.target.value })}
+                        placeholder="pt_BR"
+                      />
+                    </div>
+                    <Button className="w-full" onClick={saveWhatsapp}>
+                      <Save className="w-4 h-4 mr-2" />
+                      Salvar Integração
+                    </Button>
+                  </>
+                )}
               </CardContent>
             </Card>
 

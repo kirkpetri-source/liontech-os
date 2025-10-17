@@ -174,6 +174,7 @@ export default function ClientesPage() {
                     <Label htmlFor="whatsapp">WhatsApp *</Label>
                     <Input
                       id="whatsapp"
+                      type="tel"
                       placeholder="(00) 00000-0000"
                       value={formData.whatsapp}
                       onChange={(e) => setFormData({ 
@@ -181,7 +182,7 @@ export default function ClientesPage() {
                         whatsapp: formatWhatsApp(e.target.value) 
                       })}
                       inputMode="numeric"
-                      pattern="[0-9]*"
+                      autoComplete="tel"
                       required
                     />
                     <p className="text-sm text-slate-500">

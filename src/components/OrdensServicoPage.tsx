@@ -612,8 +612,13 @@ export default function OrdensServicoPage() {
         body: JSON.stringify({ osId: os.id })
       })
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        toast.error(err?.error || 'Falha ao enviar pelo WhatsApp')
+        let msg = 'Falha ao enviar pelo WhatsApp'
+        try {
+          const err = await res.json()
+          const parts = [err?.error, err?.message, err?.code ? `code ${err.code}` : null].filter(Boolean)
+          if (parts.length) msg = parts.join(' - ')
+        } catch {}
+        toast.error(msg)
       } else {
         toast.success('O.S. enviada pelo WhatsApp com sucesso!')
       }
@@ -716,11 +721,12 @@ export default function OrdensServicoPage() {
                       <Label htmlFor="clienteWhatsapp">WhatsApp *</Label>
                       <Input
                         id="clienteWhatsapp"
+                        type="tel"
                         placeholder="(00) 00000-0000"
                         value={formData.clienteWhatsapp}
                         onChange={(e) => setFormData({ ...formData, clienteWhatsapp: maskWhatsapp(e.target.value) })}
                         inputMode="numeric"
-                        pattern="[0-9]*"
+                        autoComplete="tel"
                         required
                       />
                     </div>

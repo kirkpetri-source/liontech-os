@@ -12,6 +12,33 @@ function toE164(brWhats: string) {
   return null
 }
 
+function parseGraphError(errText: string) {
+  try {
+    const j = JSON.parse(errText)
+    const code = j?.error?.code as number | undefined
+    const message = j?.error?.message as string | undefined
+    let error = 'Falha na integração com WhatsApp'
+    if (message && /Unsupported post request/i.test(message)) {
+      error = 'Phone ID inválido ou token sem permissão'
+    }
+    if (code === 133010) {
+      error = 'Conta do WhatsApp não registrada no Cloud API (verifique onboarding no WhatsApp Manager)'
+    } else if (code === 190) {
+      error = 'Access Token inválido ou expirado'
+    } else if (code === 10) {
+      error = 'Permissão insuficiente para enviar mensagens (verifique escopos do token)'
+    } else if (code === 100) {
+      error = 'Parâmetros inválidos enviados ao Graph (revise phoneId/to)'
+    }
+    return { error, code, message }
+  } catch {
+    const generic = /Unsupported post request/i.test(errText)
+      ? 'Phone ID inválido ou token sem permissão'
+      : 'Falha na integração com WhatsApp'
+    return { error: generic }
+  }
+}
+
 function buildHtml(os: any, empresa: any, imp: any) {
   const moeda = 'R$'
   const statusColor = os.status === 'Concluído' ? '#16a34a' : os.status === 'Em Andamento' ? '#2563eb' : os.status === 'Entregue' ? '#10b981' : '#f59e0b'
@@ -61,78 +88,25 @@ function buildHtml(os: any, empresa: any, imp: any) {
       <body>
         <div class=\"page\">
           <div class=\"doc\">
-            <header class=\"header\">
-              <div class=\"brand\">
-                <img src=\"${imp.logoUrl || '/logo.svg'}\" class=\"logo\" alt=\"logo\" onerror=\"this.style.display='none'\" />
-                <div class=\"company\">
-                  <div class=\"company-name\">${empresa.nome || 'Lion Tech'}</div>
-                  <div class=\"company-info\">${empresa.endereco || ''}</div>
-                  <div class=\"company-info\">${empresa.telefone || ''}${empresa.email ? ' • ' + empresa.email : ''}</div>
-                  <div class=\"company-info\">${empresa.cnpj ? 'CNPJ: ' + empresa.cnpj : ''}</div>
-                </div>
-              </div>
-              <div class=\"os-meta\">
-                <div class=\"os-title\">Ordem de Serviço</div>
-                <div class=\"os-number\">${os.numeroOS}</div>
-                <div style=\"margin-top:8px\"><span class=\"chip\">${os.status}</span></div>
-              </div>
-            </header>
+            <header class=\"header\">\n              <div class=\"brand\">\n                <img src=\"${imp.logoUrl || '/logo.svg'}\" class=\"logo\" alt=\"logo\" onerror=\"this.style.display='none'\" />\n                <div class=\"company\">\n                  <div class=\"company-name\">${empresa.nome || 'Lion Tech'}</div>\n                  <div class=\"company-info\">${empresa.endereco || ''}</div>\n                  <div class=\"company-info\">${empresa.telefone || ''}${empresa.email ? ' • ' + empresa.email : ''}</div>\n                  <div class=\"company-info\">${empresa.cnpj ? 'CNPJ: ' + empresa.cnpj : ''}</div>\n                </div>\n              </div>\n              <div class=\"os-meta\">\n                <div class=\"os-title\">Ordem de Serviço</div>\n                <div class=\"os-number\">${os.numeroOS}</div>\n                <div style=\"margin-top:8px\"><span class=\"chip\">${os.status}</span></div>\n              </div>\n            </header>
 
-            <main class=\"sections\">
-              <section class=\"section\">
-                <div class=\"section-h\">Dados do Cliente</div>
-                <div class=\"rows grid2\">
-                  <div>
-                    <div class=\"row\"><div class=\"label\">Nome</div><div class=\"value\">${os.clienteNome}</div></div>
-                  </div>
-                  <div>
-                    <div class=\"row\"><div class=\"label\">WhatsApp</div><div class=\"value\">${os.clienteWhatsapp}</div></div>
-                  </div>
-                </div>
-              </section>
+            <main class=\"sections\">\n              <section class=\"section\">\n                <div class=\"section-h\">Dados do Cliente</div>\n                <div class=\"rows grid2\">\n                  <div>\n                    <div class=\"row\"><div class=\"label\">Nome</div><div class=\"value\">${os.clienteNome}</div></div>\n                  </div>\n                  <div>\n                    <div class=\"row\"><div class=\"label\">WhatsApp</div><div class=\"value\">${os.clienteWhatsapp}</div></div>\n                  </div>\n                </div>\n              </section>
 
-              <section class=\"section\">
-                <div class=\"section-h\">Equipamento</div>
-                <div class=\"rows\">
-                  <div class=\"row\"><div class=\"label\">Categoria</div><div class=\"value\">${os.categoria}</div></div>
-                  <div class=\"row\"><div class=\"label\">Modelo</div><div class=\"value\">${os.equipamentoModelo}</div></div>
-                  <div class=\"row\"><div class=\"label\">Problema</div><div class=\"value\">${os.equipamentoProblema}</div></div>
-                  ${os.acessorios ? `<div class=\"row\"><div class=\"label\">Acessórios</div><div class=\"value\">${os.acessorios}</div></div>` : ''}
+              <section class=\"section\">\n                <div class=\"section-h\">Equipamento</div>\n                <div class=\"rows\">\n                  <div class=\"row\"><div class=\"label\">Categoria</div><div class=\"value\">${os.categoria}</div></div>\n                  <div class=\"row\"><div class=\"label\">Modelo</div><div class=\"value\">${os.equipamentoModelo}</div></div>\n                  <div class=\"row\"><div class=\"label\">Problema</div><div class=\"value\">${os.equipamentoProblema}</div></div>\n                  ${os.acessorios ? `<div class=\"row\"><div class=\"label\">Acessórios</div><div class=\"value\">${os.acessorios}</div></div>` : ''}
                   ${os.equipamentoSenha ? `<div class=\"row\"><div class=\"label\">Senha</div><div class=\"value\">${os.equipamentoSenha}</div></div>` : ''}
-                </div>
-              </section>
+                </div>\n              </section>
 
-              <section class=\"section\">
-                <div class=\"section-h\">Serviço</div>
-                <div class=\"rows\">
-                  <div class=\"row\"><div class=\"label\">Previsão</div><div class=\"value\">${previsao}</div></div>
-                  ${os.descricaoServico ? `<div class=\"row\"><div class=\"label\">Descrição</div><div class=\"value\">${os.descricaoServico}</div></div>` : ''}
+              <section class=\"section\">\n                <div class=\"section-h\">Serviço</div>\n                <div class=\"rows\">\n                  <div class=\"row\"><div class=\"label\">Previsão</div><div class=\"value\">${previsao}</div></div>\n                  ${os.descricaoServico ? `<div class=\"row\"><div class=\"label\">Descrição</div><div class=\"value\">${os.descricaoServico}</div></div>` : ''}
                   ${os.terceirizado ? `<div class=\"row\"><div class=\"label\">Terceirizado</div><div class=\"value\">${os.servicoTerceirizado || '—'}</div></div>` : ''}
                   ${os.rastreamentoExterno ? `<div class=\"row\"><div class=\"label\">Rastreamento</div><div class=\"value\">${os.rastreamentoExterno}</div></div>` : ''}
-                </div>
-              </section>
+                </div>\n              </section>
 
               ${(typeof os.valor === 'number' || typeof os.valorEntrada === 'number' || typeof os.valorPago === 'number') ? `
-              <section class=\"section\">
-                <div class=\"section-h\">Valores</div>
-                <div class=\"rows\">
-                  <div class=\"money\">
-                    <div><span class=\"label\">Valor Total</span><div class=\"value\">${formatMoney(os.valor)}</div></div>
-                    <div><span class=\"label\">Entrada</span><div class=\"value\">${formatMoney(os.valorEntrada)}</div></div>
-                    <div><span class=\"label\">Pago</span><div class=\"value\">${formatMoney(os.valorPago)}${os.formaPagamento ? ` (${os.formaPagamento})` : ''}</div></div>
-                    <div><span class=\"label\">Saldo</span><div class=\"value sum\">${formatMoney(saldo)}</div></div>
-                  </div>
-                </div>
-              </section>` : ''}
+              <section class=\"section\">\n                <div class=\"section-h\">Valores</div>\n                <div class=\"rows\">\n                  <div class=\"money\">\n                    <div><span class=\"label\">Valor Total</span><div class=\"value\">${formatMoney(os.valor)}</div></div>\n                    <div><span class=\"label\">Entrada</span><div class=\"value\">${formatMoney(os.valorEntrada)}</div></div>\n                    <div><span class=\"label\">Pago</span><div class=\"value\">${formatMoney(os.valorPago)}${os.formaPagamento ? ` (${os.formaPagamento})` : ''}</div></div>\n                    <div><span class=\"label\">Saldo</span><div class=\"value sum\">${formatMoney(saldo)}</div></div>\n                  </div>\n                </div>\n              </section>` : ''}
 
-              <div class=\"rows\" style=\"padding-top:0\">
-                <div class=\"row\"><div class=\"label\">Criada em</div><div class=\"value\">${new Date(os.createdAt).toLocaleString('pt-BR')}</div></div>
-              </div>
+              <div class=\"rows\" style=\"padding-top:0\">\n                <div class=\"row\"><div class=\"label\">Criada em</div><div class=\"value\">${new Date(os.createdAt).toLocaleString('pt-BR')}</div></div>\n              </div>
 
-              ${(imp.rodapeHabilitado || imp.rodapePersonalizado) ? `
-              <div class=\"foot\">
-                ${imp.rodapePersonalizado || 'Obrigado pela preferência. Garantia de serviços conforme condições acordadas.'}
-              </div>` : ''}
+              ${(imp.rodapeHabilitado || imp.rodapePersonalizado) ? `\n              <div class=\"foot\">\n                ${imp.rodapePersonalizado || 'Obrigado pela preferência. Garantia de serviços conforme condições acordadas.'}\n              </div>` : ''}
 
             </main>
           </div>
@@ -159,15 +133,21 @@ export async function POST(req: Request) {
     const to = toE164(os.clienteWhatsapp)
     if (!to) return NextResponse.json({ error: 'WhatsApp do cliente inválido' }, { status: 422 })
 
-    const token = process.env.WHATSAPP_TOKEN
-    const phoneId = process.env.WHATSAPP_PHONE_ID
+    // Prioriza credenciais do Firestore; cai para variáveis de ambiente se ausentes
+    const token = cfg?.whatsapp?.token || process.env.WHATSAPP_TOKEN
+    const phoneId = cfg?.whatsapp?.phoneId || process.env.WHATSAPP_PHONE_ID
     if (!token || !phoneId) {
       return NextResponse.json({ error: 'Config WhatsApp ausente (token/phone id)' }, { status: 500 })
     }
+    const phoneIdStr = String(phoneId)
+    const looksLikeBRPhone = /\(\d{2}\)\s?\d{4,5}-?\d{4}/.test(phoneIdStr) || /^55\d{10,11}$/.test(phoneIdStr)
+    if (!/^\d+$/.test(phoneIdStr) || looksLikeBRPhone) {
+      return NextResponse.json({ error: 'Phone ID inválido. Informe o “Phone number ID” do WhatsApp Cloud (não o número do telefone).' }, { status: 400 })
+    }
 
     // Opcional: envia mensagem de template para iniciar conversa fora da janela de 24h
-    const templateName = process.env.WHATSAPP_TEMPLATE_NAME
-    const templateLang = process.env.WHATSAPP_TEMPLATE_LANG || 'pt_BR'
+    const templateName = cfg?.whatsapp?.templateName || process.env.WHATSAPP_TEMPLATE_NAME
+    const templateLang = cfg?.whatsapp?.templateLang || process.env.WHATSAPP_TEMPLATE_LANG || 'pt_BR'
     if (templateName) {
       try {
         const previsao = os.previsaoEntrega
@@ -236,8 +216,9 @@ export async function POST(req: Request) {
     })
 
     if (!mediaRes.ok) {
-      const err = await mediaRes.text()
-      return NextResponse.json({ error: 'Falha ao enviar mídia', details: err }, { status: 500 })
+      const errText = await mediaRes.text()
+      const parsed = parseGraphError(errText)
+      return NextResponse.json({ ...parsed, details: errText }, { status: 500 })
     }
     const mediaJson = await mediaRes.json()
     const mediaId = mediaJson.id
@@ -261,8 +242,9 @@ export async function POST(req: Request) {
     })
 
     if (!msgRes.ok) {
-      const err = await msgRes.text()
-      return NextResponse.json({ error: 'Falha ao enviar mensagem', details: err }, { status: 500 })
+      const errText = await msgRes.text()
+      const parsed = parseGraphError(errText)
+      return NextResponse.json({ ...parsed, details: errText }, { status: 500 })
     }
 
     return NextResponse.json({ ok: true })

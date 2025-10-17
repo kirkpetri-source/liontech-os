@@ -2,6 +2,7 @@ export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
 import { adminDb } from '@/lib/firebase-admin'
+import { hashPassword, verifyPassword } from '@/lib/auth'
 
 type Config = {
   empresa?: {
@@ -25,12 +26,22 @@ type Config = {
     logoUrl?: string
     copiaCliente?: boolean
     mostrarPrecos?: boolean
+    rodapeHabilitado?: boolean
+    codigoBarras?: boolean
+    tamanhoPapel?: string
   }
   seguranca?: {
     doisFatores?: boolean
     expiracaoSenha?: boolean
     logAtividades?: boolean
     sessao?: string
+    configKeyHash?: string
+  }
+  whatsapp?: {
+    phoneId?: string
+    token?: string
+    templateName?: string
+    templateLang?: string
   }
   updatedAt?: string
 }
@@ -81,7 +92,49 @@ export async function GET() {
 
 export async function PUT(req: Request) {
   try {
-    const body = (await req.json()) as Config
+    const body = (await req.json()) as Config & { seguranca?: { configKeyRaw?: string } }
+
+    // Carrega configuração atual para validação de chave administrativa
+    const currentSnap = await docRef().get()
+    const current = (currentSnap.data() || {}) as Config
+    const storedHash = current?.seguranca?.configKeyHash
+    const envKey = process.env.ADMIN_CONFIG_PASSWORD
+
+    async function ensureAdminKey(headerKey: string | null | undefined): Promise<boolean> {
+      if (storedHash) {
+        if (!headerKey) return false
+        return verifyPassword(headerKey, storedHash)
+      }
+      if (envKey) {
+        return headerKey === envKey
+      }
+      // Sem proteção configurada ainda
+      return true
+    }
+
+    const adminKeyHeader = req.headers.get('x-admin-key') || req.headers.get('X-Admin-Key')
+
+    // Atualização da senha administrativa (se fornecida)
+    if (body?.seguranca && (body as any).seguranca.configKeyRaw) {
+      // Se já existe uma senha definida, exigir a atual no cabeçalho
+      const allowed = await ensureAdminKey(adminKeyHeader)
+      if (!allowed) {
+        return NextResponse.json({ error: 'Senha administrativa inválida' }, { status: 403 })
+      }
+      const newHash = await hashPassword((body as any).seguranca.configKeyRaw as string)
+      // Não persistir o campo raw
+      delete (body as any).seguranca.configKeyRaw
+      body.seguranca = { ...(current.seguranca || {}), ...body.seguranca, configKeyHash: newHash }
+    }
+
+    // Protege a atualização dos campos sensíveis de WhatsApp
+    if (body?.whatsapp) {
+      const allowed = await ensureAdminKey(adminKeyHeader)
+      if (!allowed) {
+        return NextResponse.json({ error: 'Senha administrativa inválida' }, { status: 403 })
+      }
+    }
+
     const payload: Config = { ...body, updatedAt: new Date().toISOString() }
     await docRef().set(payload, { merge: true })
     const snap = await docRef().get()
