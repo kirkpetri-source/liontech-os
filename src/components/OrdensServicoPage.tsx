@@ -34,6 +34,7 @@ import {
   DollarSign,
   Loader2
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface OrdemServico {
   id: string
@@ -385,6 +386,11 @@ export default function OrdensServicoPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    if (!isValidWhatsapp(formData.clienteWhatsapp)) {
+      toast.error('Informe um WhatsApp válido (10 ou 11 dígitos).')
+      return
+    }
+
     const numeroOS = editingOS ? editingOS.numeroOS : `OS-${String(ordensServico.length + 1).padStart(3, '0')}`
 
     const formattedData = {
@@ -400,13 +406,13 @@ export default function OrdensServicoPage() {
       servicoTerceirizado: formData.servicoTerceirizado.toUpperCase(),
       rastreamentoExterno: formData.rastreamentoExterno,
       descricaoServico: formData.descricaoServico.toUpperCase(),
-      valor: formData.valor ? parseFloat(formData.valor) : undefined,
+      valor: formData.valor ? parseCurrencyBRLToNumber(formData.valor) : undefined,
       previsaoEntrega: formData.previsaoEntrega && formData.previsaoEntregaHora 
         ? `${formData.previsaoEntrega}T${formData.previsaoEntregaHora}`
         : formData.previsaoEntrega,
       pago: formData.pago,
-      valorPago: formData.valorPago ? parseFloat(formData.valorPago) : undefined,
-      valorEntrada: formData.valorEntrada ? parseFloat(formData.valorEntrada) : undefined,
+      valorPago: formData.valorPago ? parseCurrencyBRLToNumber(formData.valorPago) : undefined,
+      valorEntrada: formData.valorEntrada ? parseCurrencyBRLToNumber(formData.valorEntrada) : undefined,
       formaPagamento: formData.formaPagamento || undefined,
       formaPagamentoEntrada: formData.formaPagamentoEntrada || undefined,
     }
@@ -524,6 +530,99 @@ export default function OrdensServicoPage() {
     }
   }
 
+  // Normaliza número de WhatsApp para padrão aceito pelo wa.me (E.164 BR)
+  const normalizeWhatsapp = (raw: string) => {
+    const digits = (raw || '').replace(/\D/g, '')
+    if (!digits) return ''
+    if (digits.startsWith('55')) return digits
+    if (digits.length >= 10 && digits.length <= 11) return '55' + digits
+    return digits
+  }
+
+  const maskWhatsapp = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0,11)
+    const d = digits
+    if (d.length <= 2) return d ? `(${d}` : ''
+    if (d.length <= 6) return `(${d.slice(0,2)}) ${d.slice(2)}`
+    if (d.length <= 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`
+    return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7,11)}`
+  }
+
+  const isValidWhatsapp = (value: string) => {
+    const digits = value.replace(/\D/g, '')
+    return digits.length === 10 || digits.length === 11
+  }
+
+  // Formata entrada como moeda BRL
+  const maskCurrencyBRL = (value: string) => {
+    const digits = value.replace(/\D/g, '')
+    if (!digits) return ''
+    const cents = digits.slice(-2).padStart(2, '0')
+    let integer = digits.slice(0, -2).replace(/^0+(?=\d)/g, '')
+    if (!integer) integer = '0'
+    const intFormatted = integer.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+    return `${intFormatted},${cents}`
+  }
+
+  // Converte string BRL para número
+  const parseCurrencyBRLToNumber = (value: string) => {
+    if (!value) return undefined
+    const normalized = value.replace(/\./g, '').replace(',', '.')
+    const num = parseFloat(normalized)
+    return isNaN(num) ? undefined : num
+  }
+
+  const formatBRL = (v?: number) => typeof v === 'number' 
+    ? v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) 
+    : undefined
+
+  const buildWhatsAppMessage = (os: OrdemServico) => {
+    const previsao = os.previsaoEntrega
+      ? (os.previsaoEntrega.includes('T')
+          ? new Date(os.previsaoEntrega).toLocaleString('pt-BR')
+          : new Date(os.previsaoEntrega).toLocaleDateString('pt-BR'))
+      : 'Não definida'
+    const total = typeof os.valor === 'number' ? formatBRL(os.valor) : undefined
+    const entrada = typeof os.valorEntrada === 'number' ? formatBRL(os.valorEntrada) : undefined
+    const pago = typeof os.valorPago === 'number' ? formatBRL(os.valorPago) : undefined
+    const saldo = (os.valor || 0) - (os.valorPago || 0) - (os.valorEntrada || 0)
+    const saldoBRL = formatBRL(saldo)
+    const partesValores = [
+      total ? `Valor: ${total}` : null,
+      entrada ? `Entrada: ${entrada}` : null,
+      pago ? `Pago: ${pago}` : null,
+      saldoBRL ? `Saldo: ${saldoBRL}` : null
+    ].filter(Boolean).join(' | ')
+    return [
+      `Olá ${os.clienteNome}, aqui é da Lion Tech.`,
+      `Sua O.S. ${os.numeroOS} está com status: ${os.status}.`,
+      `Equipamento: ${os.equipamentoModelo}`,
+      `Problema: ${os.equipamentoProblema}`,
+      `Previsão: ${previsao}`,
+      partesValores ? partesValores : ''
+    ].filter(Boolean).join('\n')
+  }
+
+  const handleSendWhatsApp = async (os: OrdemServico) => {
+    try {
+      const loadingId = (toast as any).loading ? (toast as any).loading('Enviando O.S. em PDF pelo WhatsApp...') : null
+      const res = await fetch('/api/whatsapp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ osId: os.id })
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err?.error || 'Falha ao enviar pelo WhatsApp')
+      } else {
+        toast.success('O.S. enviada pelo WhatsApp com sucesso!')
+      }
+      if (loadingId) (toast as any).dismiss?.(loadingId)
+    } catch (e) {
+      toast.error('Erro ao enviar pelo WhatsApp')
+    }
+  }
+
   const getStatusColor = (status: string) => {
     switch(status) {
       case "Concluído": return "bg-green-100 text-green-800"
@@ -619,7 +718,8 @@ export default function OrdensServicoPage() {
                         id="clienteWhatsapp"
                         placeholder="(00) 00000-0000"
                         value={formData.clienteWhatsapp}
-                        onChange={(e) => setFormData({ ...formData, clienteWhatsapp: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, clienteWhatsapp: maskWhatsapp(e.target.value) })}
+                        inputMode="numeric"
                         required
                       />
                     </div>
@@ -731,11 +831,11 @@ export default function OrdensServicoPage() {
                       <Label htmlFor="valor">Valor do Serviço (R$)</Label>
                       <Input
                         id="valor"
-                        type="number"
-                        step="0.01"
+                        type="text"
+                        inputMode="numeric"
                         placeholder="0,00"
                         value={formData.valor}
-                        onChange={(e) => setFormData({ ...formData, valor: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, valor: maskCurrencyBRL(e.target.value) })}
                       />
                     </div>
                   </div>
@@ -821,7 +921,7 @@ export default function OrdensServicoPage() {
                       checked={formData.pago}
                       onCheckedChange={(checked) => setFormData({ ...formData, pago: checked as boolean })}
                     />
-                    <Label htmlFor="pago">Serviço já foi pago</Label>
+                    <Label htmlFor="pago">Entrada/Pagamento</Label>
                   </div>
 
                   {formData.pago && (
@@ -843,40 +943,28 @@ export default function OrdensServicoPage() {
                         <Label htmlFor="valorPago">Valor Pago (R$)</Label>
                         <Input
                           id="valorPago"
-                          type="number"
-                          step="0.01"
+                          type="text"
+                          inputMode="numeric"
                           placeholder="0,00"
                           value={formData.valorPago}
-                          onChange={(e) => setFormData({ ...formData, valorPago: e.target.value })}
+                          onChange={(e) => setFormData({ ...formData, valorPago: maskCurrencyBRL(e.target.value) })}
                         />
                       </div>
                     </div>
                   )}
 
-                  <div className="flex items-center space-x-2">
-                    <Checkbox 
-                      id="temEntrada"
-                      checked={!!formData.valorEntrada}
-                      onCheckedChange={(checked) => setFormData({ 
-                        ...formData, 
-                        valorEntrada: checked ? '' : '',
-                        formaPagamentoEntrada: checked ? '' : ''
-                      })}
-                    />
-                    <Label htmlFor="temEntrada">Cliente deixou entrada/sinal</Label>
-                  </div>
+                  {/* Toggle de entrada removido conforme solicitação */}
 
-                  {formData.valorEntrada !== '' && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="valorEntrada">Valor da Entrada (R$)</Label>
                         <Input
                           id="valorEntrada"
-                          type="number"
-                          step="0.01"
+                          type="text"
+                          inputMode="numeric"
                           placeholder="0,00"
                           value={formData.valorEntrada}
-                          onChange={(e) => setFormData({ ...formData, valorEntrada: e.target.value })}
+                          onChange={(e) => setFormData({ ...formData, valorEntrada: maskCurrencyBRL(e.target.value) })}
                         />
                       </div>
                       <div className="space-y-2">
@@ -893,7 +981,6 @@ export default function OrdensServicoPage() {
                         </Select>
                       </div>
                     </div>
-                  )}
 
                   {/* Resumo Financeiro */}
                   {(formData.valor || formData.valorPago || formData.valorEntrada) && (
@@ -902,26 +989,26 @@ export default function OrdensServicoPage() {
                       {formData.valor && (
                         <div className="flex justify-between text-sm">
                           <span>Valor do Serviço:</span>
-                          <span className="font-medium">R$ {parseFloat(formData.valor || '0').toFixed(2)}</span>
+                          <span className="font-medium">R$ {(parseCurrencyBRLToNumber(formData.valor || '') || 0).toFixed(2)}</span>
                         </div>
                       )}
                       {formData.valorPago && (
                         <div className="flex justify-between text-sm text-green-600">
                           <span>Valor Pago:</span>
-                          <span className="font-medium">R$ {parseFloat(formData.valorPago || '0').toFixed(2)}</span>
+                          <span className="font-medium">R$ {(parseCurrencyBRLToNumber(formData.valorPago || '') || 0).toFixed(2)}</span>
                         </div>
                       )}
                       {formData.valorEntrada && (
                         <div className="flex justify-between text-sm text-blue-600">
                           <span>Valor de Entrada:</span>
-                          <span className="font-medium">R$ {parseFloat(formData.valorEntrada || '0').toFixed(2)}</span>
+                          <span className="font-medium">R$ {(parseCurrencyBRLToNumber(formData.valorEntrada || '') || 0).toFixed(2)}</span>
                         </div>
                       )}
                       {formData.valor && (
                         <div className="flex justify-between text-sm font-medium pt-2 border-t">
                           <span>Saldo Restante:</span>
-                          <span className={parseFloat(formData.valor || '0') - (parseFloat(formData.valorPago || '0') + parseFloat(formData.valorEntrada || '0')) > 0 ? "text-orange-600" : "text-green-600"}>
-                            R$ {(parseFloat(formData.valor || '0') - (parseFloat(formData.valorPago || '0') + parseFloat(formData.valorEntrada || '0'))).toFixed(2)}
+                          <span className={( (parseCurrencyBRLToNumber(formData.valor || '') || 0) - ((parseCurrencyBRLToNumber(formData.valorPago || '') || 0) + (parseCurrencyBRLToNumber(formData.valorEntrada || '') || 0)) ) > 0 ? "text-orange-600" : "text-green-600"}>
+                            R$ {(((parseCurrencyBRLToNumber(formData.valor || '') || 0) - ((parseCurrencyBRLToNumber(formData.valorPago || '') || 0) + (parseCurrencyBRLToNumber(formData.valorEntrada || '') || 0)))).toFixed(2)}
                           </span>
                         </div>
                       )}
@@ -1111,6 +1198,14 @@ export default function OrdensServicoPage() {
                           className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                         >
                           <Printer className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleSendWhatsApp(os)}
+                          className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                        >
+                          <Phone className="w-4 h-4" />
                         </Button>
                         {os.status !== 'Concluído' && os.status !== 'Entregue' && (
                           <Button 

@@ -17,6 +17,7 @@ type Config = {
     modoEscuro?: boolean
     confirmacaoAcoes?: boolean
     moedaPadrao?: string
+    rodapeLinks?: { label?: string; url?: string }[]
   }
   impressao?: {
     cabecalhoOrdens?: boolean
@@ -50,6 +51,7 @@ const defaults: Config = {
     modoEscuro: false,
     confirmacaoAcoes: false,
     moedaPadrao: 'BRL',
+    rodapeLinks: [],
   },
   impressao: {
     cabecalhoOrdens: true,

@@ -2,6 +2,7 @@ export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
+import { requireAuth } from '@/lib/auth';
 
 type Cliente = {
   id?: string;
@@ -10,7 +11,9 @@ type Cliente = {
   createdAt?: string; // YYYY-MM-DD
 };
 
-export async function GET() {
+export async function GET(req: Request) {
+  const authed = await requireAuth()
+  if (!authed) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   try {
     const snapshot = await adminDb
       .collection('clientes')
@@ -35,6 +38,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const authed = await requireAuth()
+  if (!authed) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   try {
     const body = (await request.json()) as Partial<Cliente>;
     if (!body.nome || !body.whatsapp) {

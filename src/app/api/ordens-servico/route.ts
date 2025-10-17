@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/auth'
 
 export async function GET() {
+  const authed = await requireAuth()
+  if (!authed) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   try {
     const ordensServico = await db.ordemServico.findMany({
       include: {
@@ -25,6 +28,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const authed = await requireAuth()
+  if (!authed) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   try {
     const body = await request.json()
     const {
@@ -43,7 +48,6 @@ export async function POST(request: NextRequest) {
       previsaoEntrega
     } = body
 
-    // Gerar número da O.S.
     const lastOS = await db.ordemServico.findFirst({
       orderBy: { createdAt: 'desc' }
     })

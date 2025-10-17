@@ -2,17 +2,19 @@ export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
+import { requireAuth } from '@/lib/auth';
 
 export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const authed = await requireAuth()
+  if (!authed) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   try {
     const { id } = params;
     const body = (await request.json()) as Record<string, unknown>;
     const update: Record<string, unknown> = {};
 
-    // Normalização de campos textuais para maiúsculas onde aplicável
     const toUpper = (v: unknown) => (typeof v === 'string' ? v.toUpperCase() : v);
 
     if ('clienteNome' in body) update.clienteNome = toUpper(body.clienteNome);
@@ -22,7 +24,6 @@ export async function PUT(
     if ('servicoTerceirizado' in body) update.servicoTerceirizado = toUpper(body.servicoTerceirizado);
     if ('descricaoServico' in body) update.descricaoServico = toUpper(body.descricaoServico);
 
-    // Demais campos (mantém valores conforme enviados)
     const passthroughKeys = [
       'numeroOS',
       'clienteWhatsapp',
@@ -60,6 +61,8 @@ export async function DELETE(
   _request: Request,
   { params }: { params: { id: string } }
 ) {
+  const authed = await requireAuth()
+  if (!authed) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   try {
     const { id } = params;
     await adminDb.collection('ordens').doc(id).delete();

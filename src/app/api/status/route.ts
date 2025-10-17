@@ -2,26 +2,29 @@ export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
+import { requireAuth } from '@/lib/auth';
 
 type Status = { id?: string; nome: string; descricao?: string; cor?: string };
 
-export async function GET() {
+export async function GET(req: Request) {
+  const authed = await requireAuth()
+  if (!authed) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   try {
     const snap = await adminDb.collection('status').get();
     if (snap.empty) {
-      // Sem status cadastrados nas configurações do sistema
       return NextResponse.json([], { status: 200 });
     }
     const status: Status[] = snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Omit<Status, 'id'>) }));
     return NextResponse.json(status, { status: 200 });
   } catch (err) {
     console.error('GET /api/status error:', err);
-    // Em caso de erro, não retornar opções adicionais
     return NextResponse.json([], { status: 500 });
   }
 }
 
 export async function POST(req: Request) {
+  const authed = await requireAuth()
+  if (!authed) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   try {
     const body = await req.json();
     if (!body || !body.nome) {

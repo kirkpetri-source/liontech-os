@@ -2,8 +2,11 @@ export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
 import { adminDb } from '@/lib/firebase-admin'
+import { requireAuth } from '@/lib/auth'
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
+  const authed = await requireAuth()
+  if (!authed) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   try {
     const id = params.id
     const body = await req.json()
@@ -18,6 +21,8 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 }
 
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+  const authed = await requireAuth()
+  if (!authed) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   try {
     const id = params.id
     if (!id) return NextResponse.json({ error: 'ID é obrigatório' }, { status: 400 })

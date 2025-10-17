@@ -42,6 +42,10 @@ export default function Home() {
   // Dados dinâmicos
   const [ordens, setOrdens] = useState<any[]>([])
   const [clientes, setClientes] = useState<any[]>([])
+  // Config para rodapé dinâmico
+  const [empresaCfg, setEmpresaCfg] = useState({ nome: '', telefone: '', email: '', endereco: '' })
+  const [sistemaCfg, setSistemaCfg] = useState<{ rodapeLinks?: { label?: string; url?: string }[] }>({ rodapeLinks: [] })
+  const [impressaoCfg, setImpressaoCfg] = useState({ rodapePersonalizado: '', rodapeHabilitado: true })
 
   useEffect(() => {
     const load = async () => {
@@ -57,6 +61,33 @@ export default function Home() {
       }
     }
     load()
+  }, [])
+  // Carregar configurações para rodapé
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const res = await fetch('/api/config')
+        if (res.ok) {
+          const cfg = await res.json()
+          setEmpresaCfg({
+            nome: cfg?.empresa?.nome || '',
+            telefone: cfg?.empresa?.telefone || '',
+            email: cfg?.empresa?.email || '',
+            endereco: cfg?.empresa?.endereco || '',
+          })
+          setSistemaCfg({
+            rodapeLinks: Array.isArray(cfg?.sistema?.rodapeLinks) ? cfg.sistema.rodapeLinks : []
+          })
+          setImpressaoCfg({
+            rodapePersonalizado: cfg?.impressao?.rodapePersonalizado || '',
+            rodapeHabilitado: cfg?.impressao?.rodapeHabilitado ?? true,
+          })
+        }
+      } catch (e) {
+        console.error('Falha ao carregar config:', e)
+      }
+    }
+    fetchConfig()
   }, [])
 
   // Se não estiver autenticado, mostrar página de login
@@ -97,6 +128,32 @@ export default function Home() {
       default: return "bg-gray-100 text-gray-800"
     }
   }
+
+  // ===== Relatórios e Analytics (dados reais) =====
+  const parseDate = (d: string) => new Date(d.includes('T') ? d : `${d}T00:00:00`)
+  const toBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  const lastMonths = Array.from({ length: 6 }, (_, i) => {
+    const dt = new Date(); dt.setMonth(dt.getMonth() - i)
+    const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`
+    const label = dt.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })
+    return { key, label }
+  }).reverse()
+
+  const byMonth = lastMonths.map((m) => {
+    const filtered = ordens.filter((os) => {
+      const dt = parseDate(String(os.createdAt))
+      const k = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`
+      return k === m.key
+    })
+    const count = filtered.length
+    const pagos = filtered.filter((os) => os.pago).length
+    const receita = filtered.reduce((sum, os) => sum + (os.valorPago || 0) + (os.valorEntrada || 0), 0)
+    return { ...m, count, pagos, receita }
+  })
+
+  const receitaTotal6m = byMonth.reduce((s, m) => s + m.receita, 0)
+  const receitaAtual = byMonth[byMonth.length - 1]?.receita || 0
+  const receitaAnterior = byMonth[byMonth.length - 2]?.receita || 0
 
   // Removido indicador de prioridade (não há campo correspondente nas O.S.)
 
@@ -306,28 +363,56 @@ export default function Home() {
             {activeTab === 'relatorios' && (
               <div className="space-y-6">
                 <h2 className="text-2xl font-bold text-slate-900">Relatórios e Analytics</h2>
-                
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <Card>
                     <CardHeader>
                       <CardTitle>Serviços por Período</CardTitle>
+                      <CardDescription>Últimos 6 meses</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-center py-8">
-                        <BarChart3 className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-                        <p className="text-slate-500">Gráficos de serviços realizados</p>
+                      <div className="space-y-3">
+                        {byMonth.map((m) => (
+                          <div key={m.key} className="flex items-center justify-between text-sm">
+                            <span className="text-slate-600">{m.label}</span>
+                            <div className="flex items-center gap-4">
+                              <span className="font-medium">Serviços: {m.count}</span>
+                              <Badge variant="outline" className="text-emerald-700 border-emerald-200">Pagos: {m.pagos}</Badge>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </CardContent>
                   </Card>
-                  
+
                   <Card>
                     <CardHeader>
                       <CardTitle>Faturamento</CardTitle>
+                      <CardDescription>Receita de entradas e pagamentos</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-center py-8">
-                        <BarChart3 className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-                        <p className="text-slate-500">Análise de faturamento mensal</p>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          <div className="p-3 rounded-lg bg-blue-50">
+                            <div className="text-xs text-slate-500">Mês atual</div>
+                            <div className="text-lg font-bold text-slate-900">{toBRL(receitaAtual)}</div>
+                          </div>
+                          <div className="p-3 rounded-lg bg-slate-50">
+                            <div className="text-xs text-slate-500">Mês anterior</div>
+                            <div className="text-lg font-bold text-slate-900">{toBRL(receitaAnterior)}</div>
+                          </div>
+                          <div className="p-3 rounded-lg bg-emerald-50">
+                            <div className="text-xs text-slate-500">Total (6 meses)</div>
+                            <div className="text-lg font-bold text-slate-900">{toBRL(receitaTotal6m)}</div>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          {byMonth.map((m) => (
+                            <div key={m.key} className="flex items-center justify-between text-sm">
+                              <span className="text-slate-600">{m.label}</span>
+                              <span className="font-medium">{toBRL(m.receita)}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -343,27 +428,45 @@ export default function Home() {
       {/* Footer */}
       <footer className="bg-white border-t border-slate-200 mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="flex items-center space-x-2 mb-4 md:mb-0">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="flex items-center space-x-2">
               <div className="w-6 h-6 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
                 <Wrench className="w-4 h-4 text-white" />
               </div>
-              <span className="text-sm text-slate-600">© 2024 Lion Tech. Todos os direitos reservados.</span>
+              <span className="text-sm text-slate-600">
+                © {new Date().getFullYear()} {empresaCfg.nome || 'Lion Tech'}. {impressaoCfg.rodapePersonalizado || 'Todos os direitos reservados.'}
+              </span>
             </div>
-            
-            <div className="flex items-center space-x-6 text-sm text-slate-500">
-              <div className="flex items-center space-x-1">
-                <Phone className="w-4 h-4" />
-                <span>(11) 9999-9999</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <Mail className="w-4 h-4" />
-                <span>contato@liontech.com.br</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <MapPin className="w-4 h-4" />
-                <span>São Paulo - SP</span>
-              </div>
+            <div className="flex flex-wrap items-center gap-6 text-sm text-slate-500">
+              {empresaCfg.telefone && (
+                <div className="flex items-center space-x-1">
+                  <Phone className="w-4 h-4" />
+                  <span>{empresaCfg.telefone}</span>
+                </div>
+              )}
+              {empresaCfg.email && (
+                <div className="flex items-center space-x-1">
+                  <Mail className="w-4 h-4" />
+                  <span>{empresaCfg.email}</span>
+                </div>
+              )}
+              {empresaCfg.endereco && (
+                <div className="flex items-center space-x-1">
+                  <MapPin className="w-4 h-4" />
+                  <span>{empresaCfg.endereco}</span>
+                </div>
+              )}
+              {(sistemaCfg.rodapeLinks || []).filter((l) => (l?.label || l?.url)).map((ln, idx) => (
+                <a
+                  key={idx}
+                  href={ln.url || '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-slate-600 hover:text-blue-600"
+                >
+                  {ln.label || ln.url}
+                </a>
+              ))}
             </div>
           </div>
         </div>

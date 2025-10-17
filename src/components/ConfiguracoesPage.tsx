@@ -44,6 +44,7 @@ interface Usuario {
   id: string
   nome: string
   email: string
+  usuario?: string
   cargo: string
   nivel: 'admin' | 'gerente' | 'tecnico' | 'recepcao'
   status: 'ativo' | 'inativo'
@@ -90,6 +91,7 @@ export default function ConfiguracoesPage() {
   const [novoUsuario, setNovoUsuario] = useState<{
     nome: string
     email: string
+    usuario: string
     senha: string
     cargo: string
     nivel: Usuario['nivel']
@@ -97,11 +99,14 @@ export default function ConfiguracoesPage() {
   }>({
     nome: '',
     email: '',
+    usuario: '',
     senha: '',
     cargo: '',
     nivel: 'tecnico',
     status: 'ativo'
   })
+
+  const [userFormError, setUserFormError] = useState<{ email?: string }>({})
 
   const [novaCategoria, setNovaCategoria] = useState({
     nome: '',
@@ -141,6 +146,7 @@ export default function ConfiguracoesPage() {
     modoEscuro: false,
     confirmacaoAcoes: true,
     moedaPadrao: 'BRL',
+    rodapeLinks: [] as { label?: string; url?: string }[],
   })
 
   const [impressao, setImpressao] = useState({
@@ -149,6 +155,7 @@ export default function ConfiguracoesPage() {
     codigoBarras: false,
     tamanhoPapel: 'A4',
     logoUrl: '',
+    rodapePersonalizado: '',
   })
 
   const [seguranca, setSeguranca] = useState({
@@ -158,9 +165,7 @@ export default function ConfiguracoesPage() {
     sessao: '8h',
   })
 
-  // Dialog do botão Sistema
-  const [showSystemDialog, setShowSystemDialog] = useState(false)
-  const [systemInfo, setSystemInfo] = useState<any>(null)
+  // Dialog do botão Sistema removido
 
   // Carregar dados iniciais (usuários, categorias, status, config)
   useEffect(() => {
@@ -171,6 +176,8 @@ export default function ConfiguracoesPage() {
           const data = await res.json()
           setUsuarios(Array.isArray(data) ? data : [])
         } else {
+          if (res.status === 401) toast.error('Não autorizado. Faça login para ver usuários.')
+          if (res.status === 403) toast.error('Permissão insuficiente para listar usuários.')
           setUsuarios([])
         }
       } catch (e) {
@@ -194,6 +201,8 @@ export default function ConfiguracoesPage() {
           }))
           setCategorias(mapped)
         } else {
+          if (res.status === 401) toast.error('Não autorizado. Faça login para ver categorias.')
+          if (res.status === 403) toast.error('Permissão insuficiente para listar categorias.')
           setCategorias([])
         }
       } catch (e) {
@@ -218,6 +227,8 @@ export default function ConfiguracoesPage() {
           }))
           setStatusList(mapped)
         } else {
+          if (res.status === 401) toast.error('Não autorizado. Faça login para ver status.')
+          if (res.status === 403) toast.error('Permissão insuficiente para listar status.')
           setStatusList([])
         }
       } catch (e) {
@@ -244,20 +255,25 @@ export default function ConfiguracoesPage() {
             modoEscuro: !!cfg.sistema.modoEscuro,
             confirmacaoAcoes: !!cfg.sistema.confirmacaoAcoes,
             moedaPadrao: cfg.sistema.moedaPadrao || 'BRL',
+            rodapeLinks: Array.isArray(cfg.sistema.rodapeLinks) ? cfg.sistema.rodapeLinks : [],
           })
           if (cfg.impressao) setImpressao({
-            cabecalhoOrdens: cfg.impressao.cabecalhoOrdens ?? true,
-            rodapeHabilitado: cfg.impressao.rodapeHabilitado ?? true,
-            codigoBarras: cfg.impressao.codigoBarras ?? false,
-            tamanhoPapel: cfg.impressao.tamanhoPapel || 'A4',
-            logoUrl: cfg.impressao.logoUrl || '',
+            cabecalhoOrdens: cfg.impressao?.cabecalhoOrdens ?? true,
+            rodapeHabilitado: cfg.impressao?.rodapeHabilitado ?? true,
+            codigoBarras: cfg.impressao?.codigoBarras ?? false,
+            tamanhoPapel: cfg.impressao?.tamanhoPapel || 'A4',
+            logoUrl: cfg.impressao?.logoUrl || '',
+            rodapePersonalizado: cfg.impressao?.rodapePersonalizado || '',
           })
           if (cfg.seguranca) setSeguranca({
-            doisFatores: !!cfg.seguranca.doisFatores,
-            expiracaoSenha: !!cfg.seguranca.expiracaoSenha,
-            logAtividades: cfg.seguranca.logAtividades ?? true,
-            sessao: cfg.seguranca.sessao || '8h',
+            doisFatores: cfg.seguranca?.doisFatores ?? false,
+            expiracaoSenha: !!cfg.seguranca?.expiracaoSenha,
+            logAtividades: cfg.seguranca?.logAtividades ?? true,
+            sessao: cfg.seguranca?.sessao || '8h',
           })
+        } else {
+          if (res.status === 401) toast.error('Não autorizado. Faça login para ver configurações.')
+          if (res.status === 403) toast.error('Permissão insuficiente para ver configurações.')
         }
       } catch (e) {
         console.error('Erro ao carregar configurações:', e)
@@ -291,34 +307,96 @@ export default function ConfiguracoesPage() {
   }
 
   const handleSaveUser = async () => {
+    let success = false
     try {
+      // Limpa erros anteriores e valida com trim + formato
+      setUserFormError({})
+      const nome = (novoUsuario.nome || '').trim()
+      const email = (novoUsuario.email || '').trim().toLowerCase()
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!nome) { toast.error('Nome é obrigatório'); return }
+      if (!email) { 
+        const msg = 'Por favor, informe o e-mail. Este campo é obrigatório para o cadastro.'
+        setUserFormError({ email: msg })
+        toast.error(msg)
+        return 
+      }
+      if (!emailRegex.test(email)) { 
+        setUserFormError({ email: 'E-mail inválido. Informe um e-mail válido.' })
+        toast.error('E-mail inválido')
+        return 
+      }
+      if (!editingUser && !novoUsuario.senha) { toast.error('Senha é obrigatória para criar novo usuário'); return }
+
       if (editingUser) {
-        await fetch(`/api/usuarios/${editingUser.id}`, {
+        const res = await fetch(`/api/usuarios/${editingUser.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            nome: novoUsuario.nome,
-            email: novoUsuario.email,
+            nome,
+            email,
+            // usuario é irreversível e não deve ser enviado em edição
             cargo: novoUsuario.cargo,
             nivel: novoUsuario.nivel,
             status: novoUsuario.status,
+            ...(novoUsuario.senha ? { senha: novoUsuario.senha } : {})
           }),
         })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          if (res.status === 401) { toast.error('Não autorizado. Faça login para editar usuários.'); return }
+          if (res.status === 403) { toast.error('Permissão insuficiente para editar usuários.'); return }
+          const msg = (data as any)?.error || 'Erro ao atualizar usuário'
+          if (res.status === 409 || /email/i.test(msg)) { setUserFormError({ email: msg }) }
+          toast.error(msg)
+          return
+        }
+        toast.success('Usuário atualizado com sucesso!')
+        success = true
       } else {
-        await fetch('/api/usuarios', {
+        const res = await fetch('/api/usuarios', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(novoUsuario),
+          body: JSON.stringify({
+            nome,
+            email,
+            cargo: novoUsuario.cargo,
+            nivel: novoUsuario.nivel,
+            status: novoUsuario.status,
+            ...(novoUsuario.senha ? { senha: novoUsuario.senha } : {})
+          }),
         })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          if (res.status === 401) { toast.error('Não autorizado. Faça login para criar usuários.'); return }
+          if (res.status === 403) { toast.error('Permissão insuficiente para criar usuários.'); return }
+          const msg = (data as any)?.error || 'Erro ao criar usuário'
+          if (res.status === 409 || /email/i.test(msg)) { setUserFormError({ email: msg }) }
+          toast.error(msg)
+          return
+        }
+        // Inserção otimista na lista
+        setUsuarios((prev) => [data as any, ...prev])
+        toast.success('Usuário criado com sucesso!')
+        success = true
       }
       const res = await fetch('/api/usuarios')
-      setUsuarios(res.ok ? await res.json() : [])
+      if (res.ok) {
+        setUsuarios(await res.json())
+      } else {
+        if (res.status === 401) toast.error('Não autorizado. Faça login para ver usuários.')
+        if (res.status === 403) toast.error('Permissão insuficiente para listar usuários.')
+        toast.error('Falha ao atualizar lista de usuários')
+      }
     } catch (e) {
       console.error('Erro ao salvar usuário:', e)
+      toast.error('Falha ao salvar usuário')
     } finally {
-      setShowUserDialog(false)
-      setEditingUser(null)
-      setNovoUsuario({ nome: '', email: '', senha: '', cargo: '', nivel: 'tecnico', status: 'ativo' })
+      if (success) {
+        setShowUserDialog(false)
+        setEditingUser(null)
+        setNovoUsuario({ nome: '', email: '', usuario: '', senha: '', cargo: '', nivel: 'tecnico', status: 'ativo' })
+      }
     }
   }
 
@@ -398,11 +476,13 @@ export default function ConfiguracoesPage() {
     setNovoUsuario({
       nome: usuario.nome,
       email: usuario.email,
+      usuario: usuario.usuario || '',
       senha: '',
       cargo: usuario.cargo,
       nivel: usuario.nivel,
       status: usuario.status
     })
+    setUserFormError({})
     setShowUserDialog(true)
   }
 
@@ -639,17 +719,7 @@ export default function ConfiguracoesPage() {
     }
   }
 
-  const openSystemInfo = async () => {
-    try {
-      const res = await fetch('/api/health')
-      const info = res.ok ? await res.json() : null
-      setSystemInfo(info)
-    } catch (e) {
-      console.error('Erro ao carregar informações do sistema:', e)
-    } finally {
-      setShowSystemDialog(true)
-    }
-  }
+  // openSystemInfo removido
 
   const handleDeleteCategory = async (id: string) => {
     try {
@@ -681,29 +751,11 @@ export default function ConfiguracoesPage() {
             <Database className="w-4 h-4 mr-2" />
             Backup
           </Button>
-          <Button variant="outline" size="sm" onClick={openSystemInfo}>
-            <Settings className="w-4 h-4 mr-2" />
-            Sistema
-          </Button>
+          {/* Botão 'Sistema' removido */}
         </div>
       </div>
 
-      {/* Dialog: Informações do Sistema */}
-      <Dialog open={showSystemDialog} onOpenChange={setShowSystemDialog}>
-        <DialogContent className="sm:max-w-[520px]">
-          <DialogHeader>
-            <DialogTitle>Informações do Sistema</DialogTitle>
-            <DialogDescription>Ambiente e status da API</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 text-sm">
-            {systemInfo ? (
-              <pre className="bg-slate-50 p-4 rounded border overflow-auto max-h-80">{JSON.stringify(systemInfo, null, 2)}</pre>
-            ) : (
-              <p>Carregando...</p>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Dialog: Informações do Sistema removido */}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-4">
@@ -739,7 +791,7 @@ export default function ConfiguracoesPage() {
                 </div>
                 <Dialog open={showUserDialog} onOpenChange={setShowUserDialog}>
                   <DialogTrigger asChild>
-                    <Button onClick={() => { setEditingUser(null); setNovoUsuario({ nome: '', email: '', senha: '', cargo: '', nivel: 'tecnico', status: 'ativo' }) }}>
+                    <Button onClick={() => { setEditingUser(null); setUserFormError({}); setNovoUsuario({ nome: '', email: '', usuario: '', senha: '', cargo: '', nivel: 'tecnico', status: 'ativo' }) }}>
                       <UserPlus className="w-4 h-4 mr-2" />
                       Novo Usuário
                     </Button>
@@ -766,9 +818,29 @@ export default function ConfiguracoesPage() {
                         <Input
                           id="email"
                           type="email"
+                          required
+                          aria-invalid={!!userFormError.email}
+                          className={userFormError.email ? "border-red-500 focus-visible:ring-red-500" : ""}
                           value={novoUsuario.email}
-                          onChange={(e) => setNovoUsuario({ ...novoUsuario, email: e.target.value.toLowerCase() })}
+                          onChange={(e) => { setNovoUsuario({ ...novoUsuario, email: e.target.value.toLowerCase() }); setUserFormError((prev) => ({ ...prev, email: undefined })); }}
                           placeholder="exemplo@email.com"
+                        />
+                        {userFormError.email && (
+                          <span className="text-red-600 text-xs">{userFormError.email}</span>
+                        )}
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="usuario">Usuário</Label>
+                        <Input
+                          id="usuario"
+                          value={editingUser ? (editingUser.usuario || '') : (() => {
+                            const parts = (novoUsuario.nome || '').trim().split(/\s+/).map(p => p.normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
+                            const first = (parts[0] || '').toLowerCase()
+                            const second = (parts[1] || parts[0] || '').toLowerCase()
+                            return first && second ? `${first}.${second}` : ''
+                          })()}
+                          disabled
+                          placeholder="primeironome.segundonome"
                         />
                       </div>
                       <div className="grid gap-2">
@@ -855,7 +927,7 @@ export default function ConfiguracoesPage() {
                           </Badge>
                         </div>
                         <div className="text-sm text-slate-500">
-                          {usuario.email} • {usuario.cargo}
+                          {usuario.usuario ? `${usuario.usuario} • ${usuario.email} • ${usuario.cargo}` : `${usuario.email} • ${usuario.cargo}`}
                         </div>
                         <div className="text-xs text-slate-400">
                           Criado em {usuario.dataCriacao} • Último acesso: {usuario.ultimoAcesso}
@@ -1238,6 +1310,66 @@ export default function ConfiguracoesPage() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Links do Rodapé */}
+                <div className="space-y-3">
+                  <Label>Links do Rodapé</Label>
+                  {(sistemaCfg.rodapeLinks || []).map((ln, idx) => (
+                    <div key={idx} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-2 items-end">
+                      <div className="grid gap-1">
+                        <Label>Texto</Label>
+                        <Input
+                          value={ln.label || ''}
+                          onChange={(e) => {
+                            const arr = [...(sistemaCfg.rodapeLinks || [])]
+                            arr[idx] = { ...ln, label: e.target.value }
+                            setSistemaCfg({ ...sistemaCfg, rodapeLinks: arr })
+                          }}
+                          placeholder="Ex.: Termos de uso"
+                        />
+                      </div>
+                      <div className="grid gap-1">
+                        <Label>URL</Label>
+                        <Input
+                          value={ln.url || ''}
+                          onChange={(e) => {
+                            const arr = [...(sistemaCfg.rodapeLinks || [])]
+                            arr[idx] = { ...ln, url: e.target.value }
+                            setSistemaCfg({ ...sistemaCfg, rodapeLinks: arr })
+                          }}
+                          placeholder="https://..."
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const arr = [...(sistemaCfg.rodapeLinks || [])]
+                          arr.splice(idx, 1)
+                          setSistemaCfg({ ...sistemaCfg, rodapeLinks: arr })
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        const arr = [...(sistemaCfg.rodapeLinks || [])]
+                        arr.push({ label: '', url: '' })
+                        setSistemaCfg({ ...sistemaCfg, rodapeLinks: arr })
+                      }}
+                    >
+                      Adicionar link
+                    </Button>
+                  </div>
+                </div>
+
                 <Button className="w-full" onClick={saveSistema}>
                   <Save className="w-4 h-4 mr-2" />
                   Salvar Configurações
@@ -1371,6 +1503,16 @@ export default function ConfiguracoesPage() {
                     <p className="text-sm text-slate-500">Incluir rodapé com informações</p>
                   </div>
                   <Switch checked={impressao.rodapeHabilitado} onCheckedChange={(v) => setImpressao({ ...impressao, rodapeHabilitado: v })} />
+                </div>
+                {/* Texto do rodapé */}
+                <div className="grid gap-2">
+                  <Label htmlFor="rodapePersonalizado">Texto do Rodapé</Label>
+                  <Textarea
+                    id="rodapePersonalizado"
+                    value={impressao.rodapePersonalizado}
+                    onChange={(e) => setImpressao({ ...impressao, rodapePersonalizado: e.target.value })}
+                    placeholder="Ex.: © 2024 Minha Empresa. Todos os direitos reservados."
+                  />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>

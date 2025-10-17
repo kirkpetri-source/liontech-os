@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ArrowLeft, Save, Wrench, CreditCard, DollarSign, Receipt, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface OrdemServico {
   id: string
@@ -130,8 +131,46 @@ export default function OSForm({ onClose, onSave }: OSFormProps) {
     fetchStatus()
   }, [])
 
+  const maskWhatsapp = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0,11)
+    const d = digits
+    if (d.length <= 2) return d ? `(${d}` : ''
+    if (d.length <= 6) return `(${d.slice(0,2)}) ${d.slice(2)}`
+    if (d.length <= 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`
+    return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7,11)}`
+  }
+
+  const isValidWhatsapp = (value: string) => {
+    const digits = value.replace(/\D/g, '')
+    return digits.length === 10 || digits.length === 11
+  }
+
+  // Formata entrada como moeda BRL (ex.: 1234 -> 12,34 ; 123456 -> 1.234,56)
+  const maskCurrencyBRL = (value: string) => {
+    const digits = value.replace(/\D/g, '')
+    if (!digits) return ''
+    const cents = digits.slice(-2).padStart(2, '0')
+    let integer = digits.slice(0, -2).replace(/^0+(?=\d)/g, '')
+    if (!integer) integer = '0'
+    const intFormatted = integer.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+    return `${intFormatted},${cents}`
+  }
+
+  // Converte string BRL mascarada para número
+  const parseCurrencyBRLToNumber = (value: string) => {
+    if (!value) return undefined
+    const normalized = value.replace(/\./g, '').replace(',', '.')
+    const num = parseFloat(normalized)
+    return isNaN(num) ? undefined : num
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!isValidWhatsapp(formData.clienteWhatsapp)) {
+      toast.error('Informe um WhatsApp válido (10 ou 11 dígitos).')
+      return
+    }
     
     // Gerar número da O.S.
     const numeroOS = `OS-${String(Date.now()).slice(-3)}`
@@ -154,9 +193,9 @@ export default function OSForm({ onClose, onSave }: OSFormProps) {
       id: Date.now().toString(),
       numeroOS,
       ...formattedData,
-      valor: parseFloat(formData.valor) || undefined,
-      valorPago: parseFloat(formData.valorPago) || undefined,
-      valorEntrada: parseFloat(formData.valorEntrada) || undefined,
+      valor: parseCurrencyBRLToNumber(formData.valor),
+      valorPago: parseCurrencyBRLToNumber(formData.valorPago),
+      valorEntrada: parseCurrencyBRLToNumber(formData.valorEntrada),
       pago: formData.pago,
       formaPagamento: formData.formaPagamento || undefined,
       formaPagamentoEntrada: formData.formaPagamentoEntrada || undefined,
@@ -215,7 +254,8 @@ export default function OSForm({ onClose, onSave }: OSFormProps) {
                       id="clienteWhatsapp"
                       placeholder="(00) 00000-0000"
                       value={formData.clienteWhatsapp}
-                      onChange={(e) => setFormData({ ...formData, clienteWhatsapp: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, clienteWhatsapp: maskWhatsapp(e.target.value) })}
+                      inputMode="numeric"
                       required
                     />
                   </div>
@@ -327,11 +367,11 @@ export default function OSForm({ onClose, onSave }: OSFormProps) {
                     <Label htmlFor="valor">Valor do Serviço (R$)</Label>
                     <Input
                       id="valor"
-                      type="number"
-                      step="0.01"
+                      type="text"
+                      inputMode="numeric"
                       placeholder="0,00"
                       value={formData.valor}
-                      onChange={(e) => setFormData({ ...formData, valor: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, valor: maskCurrencyBRL(e.target.value) })}
                     />
                   </div>
                 </div>
@@ -381,7 +421,7 @@ export default function OSForm({ onClose, onSave }: OSFormProps) {
                     checked={formData.pago}
                     onCheckedChange={(checked) => setFormData({ ...formData, pago: checked as boolean })}
                   />
-                  <Label htmlFor="pago">Serviço já foi pago</Label>
+                  <Label htmlFor="pago">Entrada/Pagamento</Label>
                 </div>
 
                 {formData.pago && (
@@ -403,40 +443,28 @@ export default function OSForm({ onClose, onSave }: OSFormProps) {
                       <Label htmlFor="valorPago">Valor Pago (R$)</Label>
                       <Input
                         id="valorPago"
-                        type="number"
-                        step="0.01"
+                        type="text"
+                        inputMode="numeric"
                         placeholder="0,00"
                         value={formData.valorPago}
-                        onChange={(e) => setFormData({ ...formData, valorPago: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, valorPago: maskCurrencyBRL(e.target.value) })}
                       />
                     </div>
                   </div>
                 )}
 
-                <div className="flex items-center space-x-2">
-                  <Checkbox 
-                    id="temEntrada"
-                    checked={!!formData.valorEntrada}
-                    onCheckedChange={(checked) => setFormData({ 
-                      ...formData, 
-                      valorEntrada: checked ? '' : '',
-                      formaPagamentoEntrada: checked ? '' : ''
-                    })}
-                  />
-                  <Label htmlFor="temEntrada">Cliente deixou entrada/sinal</Label>
-                </div>
+                {/* Toggle de entrada removido conforme solicitação */}
 
-                {formData.valorEntrada !== '' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="valorEntrada">Valor da Entrada (R$)</Label>
                       <Input
                         id="valorEntrada"
-                        type="number"
-                        step="0.01"
+                        type="text"
+                        inputMode="numeric"
                         placeholder="0,00"
                         value={formData.valorEntrada}
-                        onChange={(e) => setFormData({ ...formData, valorEntrada: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, valorEntrada: maskCurrencyBRL(e.target.value) })}
                       />
                     </div>
                     <div className="space-y-2">
@@ -453,7 +481,6 @@ export default function OSForm({ onClose, onSave }: OSFormProps) {
                       </Select>
                     </div>
                   </div>
-                )}
 
                 {formData.valor && (formData.valorPago || formData.valorEntrada) && (
                   <div className="bg-slate-50 p-4 rounded-lg">
@@ -463,24 +490,24 @@ export default function OSForm({ onClose, onSave }: OSFormProps) {
                     <div className="mt-2 space-y-1">
                       <div className="flex justify-between text-sm">
                         <span className="text-slate-500">Valor Total:</span>
-                        <span className="font-medium">R$ {parseFloat(formData.valor).toFixed(2)}</span>
+                        <span className="font-medium">R$ {(parseCurrencyBRLToNumber(formData.valor || '') || 0).toFixed(2)}</span>
                       </div>
                       {formData.valorPago && (
                         <div className="flex justify-between text-sm">
                           <span className="text-slate-500">Valor Pago:</span>
-                          <span className="font-medium text-green-600">R$ {parseFloat(formData.valorPago).toFixed(2)}</span>
+                          <span className="font-medium text-green-600">R$ {(parseCurrencyBRLToNumber(formData.valorPago || '') || 0).toFixed(2)}</span>
                         </div>
                       )}
                       {formData.valorEntrada && (
                         <div className="flex justify-between text-sm">
                           <span className="text-slate-500">Valor Entrada:</span>
-                          <span className="font-medium text-blue-600">R$ {parseFloat(formData.valorEntrada).toFixed(2)}</span>
+                          <span className="font-medium text-blue-600">R$ {(parseCurrencyBRLToNumber(formData.valorEntrada || '') || 0).toFixed(2)}</span>
                         </div>
                       )}
                       <div className="flex justify-between text-sm font-bold border-t pt-1">
                         <span>Saldo Restante:</span>
-                        <span className={(parseFloat(formData.valor) - (parseFloat(formData.valorPago || '0') + parseFloat(formData.valorEntrada || '0'))) > 0 ? 'text-orange-600' : 'text-green-600'}>
-                          R$ {(parseFloat(formData.valor) - (parseFloat(formData.valorPago || '0') + parseFloat(formData.valorEntrada || '0'))).toFixed(2)}
+                        <span className={(((parseCurrencyBRLToNumber(formData.valor || '') || 0) - ((parseCurrencyBRLToNumber(formData.valorPago || '') || 0) + (parseCurrencyBRLToNumber(formData.valorEntrada || '') || 0))) > 0 ? 'text-orange-600' : 'text-green-600')}>
+                          R$ {(((parseCurrencyBRLToNumber(formData.valor || '') || 0) - ((parseCurrencyBRLToNumber(formData.valorPago || '') || 0) + (parseCurrencyBRLToNumber(formData.valorEntrada || '') || 0)))).toFixed(2)}
                         </span>
                       </div>
                     </div>
