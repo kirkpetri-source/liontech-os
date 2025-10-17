@@ -77,48 +77,7 @@ export default function OrdensServicoPage() {
   const [editingOS, setEditingOS] = useState<OrdemServico | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('Em Andamento')
-  const [ordensServico, setOrdensServico] = useState<OrdemServico[]>([
-    {
-      id: '1',
-      numeroOS: 'OS-001',
-      clienteNome: 'João Silva',
-      clienteWhatsapp: '(11) 99999-8888',
-      equipamentoModelo: 'Notebook Dell Inspiron 15',
-      equipamentoProblema: 'Tela quebrada, não liga',
-      equipamentoSenha: 'joao123',
-      acessorios: 'Carregador, Mouse USB',
-      categoria: 'Notebooks',
-      status: 'Em Andamento',
-      terceirizado: false,
-      valor: 350.00,
-      previsaoEntrega: '2024-01-20',
-      pago: false,
-      valorEntrada: 50.00,
-      formaPagamentoEntrada: 'Pix',
-      createdAt: '2024-01-15'
-    },
-    {
-      id: '2',
-      numeroOS: 'OS-002',
-      clienteNome: 'Maria Santos',
-      clienteWhatsapp: '(11) 97777-6666',
-      equipamentoModelo: 'iPhone 13 Pro',
-      equipamentoProblema: 'Bateria não carrega',
-      equipamentoSenha: '123456',
-      acessorios: 'Capa, Carregador',
-      categoria: 'Smartphones',
-      status: 'Concluído',
-      terceirizado: true,
-      servicoTerceirizado: 'Conserto de placa lógica',
-      rastreamentoExterno: 'BR123456789BR',
-      valor: 580.00,
-      previsaoEntrega: '2024-01-25',
-      pago: true,
-      valorPago: 580.00,
-      formaPagamento: 'Cartão de Crédito',
-      createdAt: '2024-01-14'
-    }
-  ])
+  const [ordensServico, setOrdensServico] = useState<OrdemServico[]>([])
 
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [statusList, setStatusList] = useState<Status[]>([])
@@ -170,6 +129,23 @@ export default function OrdensServicoPage() {
     { id: '6', nome: 'Entregue', descricao: 'Equipamento entregue ao cliente', cor: '#059669' },
     { id: '7', nome: 'Cancelado', descricao: 'Serviço cancelado', cor: '#EF4444' }
   ]
+
+  // Carregar ordens do banco de dados
+  useEffect(() => {
+    const fetchOrdens = async () => {
+      try {
+        const response = await fetch('/api/ordens')
+        if (response.ok) {
+          const data = await response.json()
+          setOrdensServico(data)
+        }
+      } catch (error) {
+        console.error('Erro ao buscar ordens de serviço:', error)
+      }
+    }
+
+    fetchOrdens()
+  }, [])
 
   // Carregar categorias do banco de dados
   useEffect(() => {
@@ -314,55 +290,60 @@ export default function OrdensServicoPage() {
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     const numeroOS = editingOS ? editingOS.numeroOS : `OS-${String(ordensServico.length + 1).padStart(3, '0')}`
-    
-    // Converter campos para maiúsculas (exceto senha)
+
     const formattedData = {
-      ...formData,
       clienteNome: formData.clienteNome.toUpperCase(),
+      clienteWhatsapp: formData.clienteWhatsapp,
       equipamentoModelo: formData.equipamentoModelo.toUpperCase(),
       equipamentoProblema: formData.equipamentoProblema.toUpperCase(),
+      equipamentoSenha: formData.equipamentoSenha,
       acessorios: formData.acessorios.toUpperCase(),
+      categoria: formData.categoria,
+      status: formData.status || 'Recebido',
+      terceirizado: formData.terceirizado,
       servicoTerceirizado: formData.servicoTerceirizado.toUpperCase(),
+      rastreamentoExterno: formData.rastreamentoExterno,
       descricaoServico: formData.descricaoServico.toUpperCase(),
+      valor: formData.valor ? parseFloat(formData.valor) : undefined,
       previsaoEntrega: formData.previsaoEntrega && formData.previsaoEntregaHora 
         ? `${formData.previsaoEntrega}T${formData.previsaoEntregaHora}`
-        : formData.previsaoEntrega
+        : formData.previsaoEntrega,
+      pago: formData.pago,
+      valorPago: formData.valorPago ? parseFloat(formData.valorPago) : undefined,
+      valorEntrada: formData.valorEntrada ? parseFloat(formData.valorEntrada) : undefined,
+      formaPagamento: formData.formaPagamento || undefined,
+      formaPagamentoEntrada: formData.formaPagamentoEntrada || undefined,
     }
-    
-    if (editingOS) {
-      setOrdensServico(ordensServico.map(os => 
-        os.id === editingOS.id 
-          ? { 
-              ...os, 
-              ...formattedData, 
-              valor: parseFloat(formData.valor) || undefined,
-              valorPago: parseFloat(formData.valorPago) || undefined,
-              valorEntrada: parseFloat(formData.valorEntrada) || undefined,
-              pago: formData.pago,
-              formaPagamento: formData.formaPagamento || undefined,
-              formaPagamentoEntrada: formData.formaPagamentoEntrada || undefined
-            }
-          : os
-      ))
-      setEditingOS(null)
-    } else {
-      const newOS: OrdemServico = {
-        id: Date.now().toString(),
-        numeroOS,
-        ...formattedData,
-        valor: parseFloat(formData.valor) || undefined,
-        valorPago: parseFloat(formData.valorPago) || undefined,
-        valorEntrada: parseFloat(formData.valorEntrada) || undefined,
-        pago: formData.pago,
-        formaPagamento: formData.formaPagamento || undefined,
-        formaPagamentoEntrada: formData.formaPagamentoEntrada || undefined,
-        createdAt: new Date().toISOString().split('T')[0]
+
+    try {
+      if (editingOS?.id) {
+        const res = await fetch(`/api/ordens/${editingOS.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...formattedData, numeroOS }),
+        })
+        if (res.ok) {
+          const updated = await res.json()
+          setOrdensServico(ordensServico.map(os => os.id === updated.id ? updated : os))
+          setEditingOS(null)
+        }
+      } else {
+        const res = await fetch('/api/ordens', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...formattedData, numeroOS }),
+        })
+        if (res.ok) {
+          const created = await res.json()
+          setOrdensServico([...ordensServico, created])
+        }
       }
-      setOrdensServico([...ordensServico, newOS])
+    } catch (error) {
+      console.error('Erro ao salvar ordem de serviço:', error)
     }
 
     setFormData({
@@ -424,16 +405,31 @@ export default function OrdensServicoPage() {
     setShowForm(true)
   }
 
-  const handleDelete = (id: string) => {
-    setOrdensServico(ordensServico.filter(os => os.id !== id))
+  const handleDelete = async (id: string) => {
+    try {
+      const res = await fetch(`/api/ordens/${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        setOrdensServico(ordensServico.filter(os => os.id !== id))
+      }
+    } catch (error) {
+      console.error('Erro ao deletar ordem de serviço:', error)
+    }
   }
 
-  const handleFinalizarOS = (id: string) => {
-    setOrdensServico(ordensServico.map(os => 
-      os.id === id 
-        ? { ...os, status: 'Concluído', dataConclusao: new Date().toISOString() }
-        : os
-    ))
+  const handleFinalizarOS = async (id: string) => {
+    try {
+      const res = await fetch(`/api/ordens/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'Concluído' }),
+      })
+      if (res.ok) {
+        const updated = await res.json()
+        setOrdensServico(ordensServico.map(os => os.id === id ? updated : os))
+      }
+    } catch (error) {
+      console.error('Erro ao finalizar ordem de serviço:', error)
+    }
   }
 
   const getStatusColor = (status: string) => {

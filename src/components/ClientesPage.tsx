@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,20 +31,7 @@ export default function ClientesPage() {
   const [showForm, setShowForm] = useState(false)
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [clientes, setClientes] = useState<Cliente[]>([
-    {
-      id: '1',
-      nome: 'João Silva',
-      whatsapp: '(11) 99999-8888',
-      createdAt: '2024-01-15'
-    },
-    {
-      id: '2', 
-      nome: 'Maria Santos',
-      whatsapp: '(11) 97777-6666',
-      createdAt: '2024-01-14'
-    }
-  ])
+  const [clientes, setClientes] = useState<Cliente[]>([])
 
   const [formData, setFormData] = useState({
     nome: '',
@@ -56,29 +43,54 @@ export default function ClientesPage() {
     cliente.whatsapp.includes(searchTerm)
   )
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    // Converter nome para maiúsculas
-    const formattedData = {
-      ...formData,
-      nome: formData.nome.toUpperCase()
-    }
-    
-    if (editingCliente) {
-      setClientes(clientes.map(c => 
-        c.id === editingCliente.id 
-          ? { ...c, ...formattedData }
-          : c
-      ))
-      setEditingCliente(null)
-    } else {
-      const newCliente: Cliente = {
-        id: Date.now().toString(),
-        ...formattedData,
-        createdAt: new Date().toISOString().split('T')[0]
+  useEffect(() => {
+    const loadClientes = async () => {
+      try {
+        const res = await fetch('/api/clientes');
+        if (res.ok) {
+          const data = await res.json();
+          setClientes(data);
+        }
+      } catch (err) {
+        console.error('Erro ao carregar clientes:', err);
       }
-      setClientes([...clientes, newCliente])
+    };
+    loadClientes();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    const formattedData = {
+      nome: formData.nome.toUpperCase(),
+      whatsapp: formData.whatsapp,
+    }
+
+    try {
+      if (editingCliente) {
+        const res = await fetch(`/api/clientes/${editingCliente.id}` ,{
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formattedData),
+        });
+        if (res.ok) {
+          const updated = await res.json();
+          setClientes(clientes.map(c => c.id === updated.id ? updated : c));
+          setEditingCliente(null)
+        }
+      } else {
+        const res = await fetch('/api/clientes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formattedData),
+        });
+        if (res.ok) {
+          const created = await res.json();
+          setClientes([...clientes, created]);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao salvar cliente:', err);
     }
 
     setFormData({ nome: '', whatsapp: '' })
@@ -94,8 +106,15 @@ export default function ClientesPage() {
     setShowForm(true)
   }
 
-  const handleDelete = (id: string) => {
-    setClientes(clientes.filter(c => c.id !== id))
+  const handleDelete = async (id: string) => {
+    try {
+      const res = await fetch(`/api/clientes/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setClientes(clientes.filter(c => c.id !== id))
+      }
+    } catch (err) {
+      console.error('Erro ao deletar cliente:', err);
+    }
   }
 
   const formatWhatsApp = (value: string) => {

@@ -190,12 +190,43 @@ export default function Home() {
         {showOSForm ? (
           <OSForm 
             onClose={() => setShowOSForm(false)}
-            onSave={(os) => {
-              // Aqui você pode adicionar lógica para salvar a O.S.
-              // Por enquanto, apenas fecha o formulário
-              console.log('Nova O.S. criada:', os)
-              setShowOSForm(false)
-              setActiveTab('ordens')
+            onSave={async (os) => {
+              try {
+                const res = await fetch('/api/ordens', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    numeroOS: os.numeroOS,
+                    clienteNome: os.clienteNome,
+                    clienteWhatsapp: os.clienteWhatsapp,
+                    equipamentoModelo: os.equipamentoModelo,
+                    equipamentoProblema: os.equipamentoProblema,
+                    equipamentoSenha: os.equipamentoSenha,
+                    acessorios: os.acessorios,
+                    categoria: os.categoria,
+                    status: os.status || 'Recebido',
+                    terceirizado: os.terceirizado,
+                    servicoTerceirizado: os.servicoTerceirizado,
+                    rastreamentoExterno: os.rastreamentoExterno,
+                    descricaoServico: os.descricaoServico,
+                    valor: os.valor,
+                    previsaoEntrega: os.previsaoEntrega,
+                    pago: os.pago,
+                    valorPago: os.valorPago,
+                    valorEntrada: os.valorEntrada,
+                    formaPagamento: os.formaPagamento,
+                    formaPagamentoEntrada: os.formaPagamentoEntrada,
+                  }),
+                })
+                if (res.ok) {
+                  setShowOSForm(false)
+                  setActiveTab('ordens')
+                } else {
+                  console.error('Falha ao criar O.S.:', await res.text())
+                }
+              } catch (error) {
+                console.error('Erro ao criar O.S.:', error)
+              }
             }}
           />
         ) : (
