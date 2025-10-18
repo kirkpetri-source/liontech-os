@@ -233,7 +233,7 @@ export default function OrdensServicoPage() {
       cabecalhoOrdens: impressaoCfg?.cabecalhoOrdens !== false,
       rodapeHabilitado: impressaoCfg?.rodapeHabilitado !== false,
       rodapePersonalizado: impressaoCfg?.rodapePersonalizado || '',
-      logoUrl: impressaoCfg?.logoUrl || '/logo.svg',
+      logoUrl: normalizeLogoUrl(impressaoCfg?.logoUrl),
       tamanhoPapel: impressaoCfg?.tamanhoPapel || 'A4',
       codigoBarras: impressaoCfg?.codigoBarras || false
     }
@@ -1347,4 +1347,11 @@ export default function OrdensServicoPage() {
       </main>
     </div>
   )
+}
+
+const normalizeLogoUrl = (url?: string) => {
+  const u = (url || '').trim()
+  if (!u) return '/logo.svg'
+  if (/^(https?:\/\/|data:)/.test(u) || u.startsWith('/')) return u
+  return `/uploads/logos/${u}`
 }

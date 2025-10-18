@@ -40,6 +40,13 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
+const normalizeLogoUrl = (url?: string) => {
+  const u = (url || '').trim()
+  if (!u) return ''
+  if (/^(https?:\/\/|data:)/.test(u) || u.startsWith('/')) return u
+  return `/uploads/logos/${u}`
+}
+
 interface Usuario {
   id: string
   nome: string
@@ -620,6 +627,37 @@ export default function ConfiguracoesPage() {
     } catch (e) {
       console.error('Erro ao salvar WhatsApp:', e)
       toast.error('Erro ao salvar integração WhatsApp')
+    }
+  }
+
+  const [waTesting, setWaTesting] = useState(false)
+  const testWhatsapp = async () => {
+    if (!waUnlocked) {
+      toast.error('Desbloqueie com a senha administrativa para testar')
+      return
+    }
+    setWaTesting(true)
+    try {
+      const res = await fetch('/api/whatsapp/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': waAdminKey },
+        body: JSON.stringify({})
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && (data as any)?.ok) {
+        const info = (data as any)?.graph
+        const phone = info?.phone ? ` (${info.phone})` : ''
+        const waba = info?.waba?.id ? ` • WABA: ${info.waba.id}` : ''
+        toast.success(`Integração OK${phone}${waba}`)
+      } else {
+        const err = (data as any)?.graph?.error || (data as any)?.error || 'Falha no teste de integração'
+        toast.error(err)
+      }
+    } catch (e) {
+      console.error('Erro ao testar integração WhatsApp:', e)
+      toast.error('Erro ao testar integração WhatsApp')
+    } finally {
+      setWaTesting(false)
     }
   }
 
@@ -1455,7 +1493,7 @@ export default function ConfiguracoesPage() {
                   <div className="flex items-center justify-center w-28 h-28 rounded border bg-slate-50 overflow-hidden">
                     {impressao.logoUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={impressao.logoUrl} alt="Logo" className="max-w-full max-h-full object-contain" />
+                      <img src={normalizeLogoUrl(impressao.logoUrl)} alt="Logo" className="max-w-full max-h-full object-contain" />
                     ) : (
                       <span className="text-xs text-slate-400 text-center px-2">Prévia da logo</span>
                     )}
@@ -1697,10 +1735,15 @@ export default function ConfiguracoesPage() {
                         placeholder="pt_BR"
                       />
                     </div>
-                    <Button className="w-full" onClick={saveWhatsapp}>
-                      <Save className="w-4 h-4 mr-2" />
-                      Salvar Integração
-                    </Button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button className="w-full" onClick={saveWhatsapp}>
+                        <Save className="w-4 h-4 mr-2" />
+                        Salvar Integração
+                      </Button>
+                      <Button className="w-full" variant="outline" onClick={testWhatsapp} disabled={waTesting}>
+                        {waTesting ? 'Testando...' : 'Testar integração'}
+                      </Button>
+                    </div>
                   </>
                 )}
               </CardContent>
