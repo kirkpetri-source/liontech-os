@@ -605,14 +605,17 @@ export default function OrdensServicoPage() {
 
   const handleSendWhatsApp = async (os: OrdemServico) => {
     try {
-      const loadingId = (toast as any).loading ? (toast as any).loading('Enviando O.S. em PDF pelo WhatsApp...') : null
-      const res = await fetch('/api/whatsapp/send', {
+      const loadingId = (toast as any).loading ? (toast as any).loading('Enviando link da O.S. pelo WhatsApp...') : null
+
+      // Forçar uso do WhatsApp Web neste momento
+      const endpoint = '/api/whatsapp-web/send'
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ osId: os.id })
+        body: JSON.stringify({ osId: os.id, mode: 'link' })
       })
       if (!res.ok) {
-        let msg = 'Falha ao enviar pelo WhatsApp'
+        let msg = 'Falha ao enviar pelo WhatsApp Web'
         try {
           const err = await res.json()
           const parts = [err?.error, err?.message, err?.code ? `code ${err.code}` : null].filter(Boolean)
@@ -620,11 +623,11 @@ export default function OrdensServicoPage() {
         } catch {}
         toast.error(msg)
       } else {
-        toast.success('O.S. enviada pelo WhatsApp com sucesso!')
+        toast.success('Enviado via WhatsApp Web!')
       }
       if (loadingId) (toast as any).dismiss?.(loadingId)
     } catch (e) {
-      toast.error('Erro ao enviar pelo WhatsApp')
+      toast.error('Erro ao enviar pelo WhatsApp Web')
     }
   }
 

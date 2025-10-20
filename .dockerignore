@@ -1,0 +1,25 @@
+# Node
+node_modules
+npm-debug.log
+
+# Next.js build output
+.next
+out
+
+# Logs
+*.log
+logs
+
+# Local data and caches
+.wwebjs_cache
+.db
+/db
+/qr-test.txt
+/dev.log
+/server.log
+
+# Environment files
+.env*
+
+# Prisma sqlite dev db
+/db/dev.db

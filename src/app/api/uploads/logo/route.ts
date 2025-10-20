@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto'
 import fs from 'fs/promises'
 import path from 'path'
 
+export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
@@ -46,9 +47,9 @@ export async function POST(req: Request) {
       const publicUrl = `/uploads/logos/${sanitized}`
       return NextResponse.json({ url: publicUrl, path: `uploads/logos/${sanitized}`, storage: 'local' }, { status: 200 })
     }
-  } catch (err) {
+  } catch (err: any) {
     console.error('Upload logo error (fatal):', err)
-    return NextResponse.json({ error: 'Falha ao enviar logo' }, { status: 500 })
+    return NextResponse.json({ error: 'Falha ao enviar logo', detail: String(err?.message || err) }, { status: 500 })
   }
 }
 

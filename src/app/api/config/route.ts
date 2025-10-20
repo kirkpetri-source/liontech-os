@@ -42,6 +42,9 @@ type Config = {
     token?: string
     templateName?: string
     templateLang?: string
+    mode?: 'cloud' | 'web'
+    osShareSecret?: string
+    messageTemplate?: string
   }
   updatedAt?: string
 }
@@ -83,7 +86,15 @@ export async function GET() {
       return NextResponse.json(defaults, { status: 200 })
     }
     const cfg = (snap.data() as Config) || {}
-    return NextResponse.json({ ...defaults, ...cfg }, { status: 200 })
+    const merged: Config = { ...defaults, ...cfg }
+    // Mascara o segredo de compartilhamento, se existir
+    if (merged.whatsapp?.osShareSecret) {
+      merged.whatsapp = {
+        ...merged.whatsapp,
+        osShareSecret: '********'
+      }
+    }
+    return NextResponse.json(merged, { status: 200 })
   } catch (err) {
     console.error('GET /api/config error:', err)
     return NextResponse.json(defaults, { status: 200 })
@@ -133,6 +144,19 @@ export async function PUT(req: Request) {
       if (!allowed) {
         return NextResponse.json({ error: 'Senha administrativa inválida' }, { status: 403 })
       }
+      // Mescla preservando segredo quando mascarado ou vazio
+      const incoming = body.whatsapp
+      const currWhats = current.whatsapp || {}
+      const nextWhats: NonNullable<Config['whatsapp']> = { ...currWhats, ...incoming }
+      if (typeof incoming.osShareSecret === 'string') {
+        const v = (incoming.osShareSecret || '').trim()
+        if (v === '' || v === '********') {
+          nextWhats.osShareSecret = currWhats.osShareSecret
+        } else {
+          nextWhats.osShareSecret = v
+        }
+      }
+      body.whatsapp = nextWhats
     }
 
     const payload: Config = { ...body, updatedAt: new Date().toISOString() }

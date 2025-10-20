@@ -4,7 +4,14 @@ import { NextResponse } from 'next/server'
 import { adminDb } from '@/lib/firebase-admin'
 import puppeteer from 'puppeteer'
 
-function buildHtml(os: any, empresa: any, imp: any) {
+function normalizeLogoUrl(url?: string) {
+  const u = (url || '').trim()
+  if (!u) return ''
+  if (/^(https?:\/\/|data:)/.test(u) || u.startsWith('/')) return u
+  return `/uploads/logos/${u}`
+}
+
+function buildHtml(os: any, empresa: any, imp: any, baseHref: string) {
   const moeda = 'R$'
   const statusColor = os.status === 'Concluído' ? '#16a34a' : os.status === 'Em Andamento' ? '#2563eb' : os.status === 'Entregue' ? '#10b981' : '#f59e0b'
   const formatMoney = (v?: number) => typeof v === 'number' ? `${moeda} ${v.toFixed(2)}` : '-'
@@ -15,11 +22,14 @@ function buildHtml(os: any, empresa: any, imp: any) {
     : 'Não definida'
   const saldo = (os.valor || 0) - (os.valorPago || 0) - (os.valorEntrada || 0)
 
+  const logoSrc = normalizeLogoUrl(imp.logoUrl) || '/logo.svg'
+
   return `
     <html>
       <head>
         <meta charset="utf-8" />
         <title>Ordem de Serviço ${os.numeroOS}</title>
+        <base href="${baseHref}">
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
         <style>
           :root { --ink:#0f172a; --muted:#64748b; --accent:#1d4ed8; --line:#e2e8f0; }
@@ -56,7 +66,7 @@ function buildHtml(os: any, empresa: any, imp: any) {
           <div class="doc">
             <header class="header">
               <div class="brand">
-                <img src="${imp.logoUrl || '/logo.svg'}" class="logo" alt="logo" onerror="this.style.display='none'" />
+                <img src="${logoSrc}" class="logo" alt="logo" onerror="this.style.display='none'" />
                 <div class="company">
                   <div class="company-name">${empresa.nome || 'Lion Tech'}</div>
                   <div class="company-info">${empresa.endereco || ''}</div>
@@ -95,16 +105,6 @@ function buildHtml(os: any, empresa: any, imp: any) {
                 </div>
               </section>
 
-              <section class="section">
-                <div class="section-h">Serviço</div>
-                <div class="rows">
-                  <div class="row"><div class="label">Previsão</div><div class="value">${previsao}</div></div>
-                  ${os.descricaoServico ? `<div class="row"><div class="label">Descrição</div><div class="value">${os.descricaoServico}</div></div>` : ''}
-                  ${os.terceirizado ? `<div class="row"><div class="label">Terceirizado</div><div class="value">${os.servicoTerceirizado || '—'}</div></div>` : ''}
-                  ${os.rastreamentoExterno ? `<div class="row"><div class="label">Rastreamento</div><div class="value">${os.rastreamentoExterno}</div></div>` : ''}
-                </div>
-              </section>
-
               ${(typeof os.valor === 'number' || typeof os.valorEntrada === 'number' || typeof os.valorPago === 'number') ? `
               <section class="section">
                 <div class="section-h">Valores</div>
@@ -135,7 +135,7 @@ function buildHtml(os: any, empresa: any, imp: any) {
   `
 }
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: { id: string } }) {
   try {
     const snap = await adminDb.collection('ordens').doc(params.id).get()
     const os = snap.data()
@@ -146,7 +146,11 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     const empresa = cfg.empresa || {}
     const imp = cfg.impressao || {}
 
-    const html = buildHtml(os, empresa, imp)
+    const host = req.headers.get('host') || '127.0.0.1:3000'
+    const scheme = host.includes('localhost') || host.startsWith('127.0.0.1') ? 'http' : 'https'
+    const baseHref = `${scheme}://${host}`
+
+    const html = buildHtml(os, empresa, imp, baseHref)
 
     const browser = await puppeteer.launch({ args: ['--no-sandbox'], headless: true })
     const page = await browser.newPage()

@@ -102,6 +102,31 @@ export async function POST(req: Request) {
     if (!res.ok) {
       const errText = await res.text().catch(() => '')
       const parsed = parseGraphError(errText)
+
+      // Fallback: alguns apps/números não expõem whatsapp_business_account neste node (v20+)
+      const fieldMissing = (parsed?.message && /nonexisting field\s*\(whatsapp_business_account\)/i.test(parsed.message))
+        || /nonexisting field\s*\(whatsapp_business_account\)/i.test(errText)
+
+      if (fieldMissing) {
+        const url2 = `https://graph.facebook.com/v20.0/${phoneId}?fields=id,display_phone_number,verified_name`
+        const res2 = await fetch(url2, {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        if (res2.ok) {
+          const json2 = await res2.json().catch(() => ({}))
+          result.graph = {
+            ok: true,
+            phone: json2?.display_phone_number,
+            verified_name: json2?.verified_name,
+            waba: undefined
+          }
+          result.ok = true
+          result.suggestions.push('Campo WABA não disponível neste node; integração validada sem WABA.')
+          return NextResponse.json(result, { status: 200 })
+        }
+      }
+
       result.graph = { ok: false, error: parsed.error, code: parsed.code, message: parsed.message, details: errText }
       result.suggestions.push('Verifique onboarding do número no WhatsApp Manager e se o token pertence à mesma WABA do phoneId')
       return NextResponse.json(result, { status: 200 })

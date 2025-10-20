@@ -1,0 +1,18 @@
+version: "3.9"
+services:
+  app:
+    image: ${GHCR_IMAGE}
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    ports:
+      - "3000:3000"
+    volumes:
+      # Persist WhatsApp Web session across restarts
+      - ./db/whatsapp-web-session:/app/db/whatsapp-web-session
+    # Healthcheck (optional): waits for HTTP 200 on root
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5

@@ -176,14 +176,23 @@ export default function ConfiguracoesPage() {
   const [whatsapp, setWhatsapp] = useState({
     phoneId: '',
     token: '',
+    osShareSecret: '',
     templateName: '',
     templateLang: 'pt_BR',
+    mode: 'cloud',
+    messageTemplate: '',
   })
   const [waUnlocked, setWaUnlocked] = useState(false)
   const [waAdminKey, setWaAdminKey] = useState('')
   const [waPassInput, setWaPassInput] = useState('')
   const [showWaToken, setShowWaToken] = useState(false)
+  const [showWaSecret, setShowWaSecret] = useState(false)
   const [showWaPass, setShowWaPass] = useState(false)
+  const [waWebState, setWaWebState] = useState<'disconnected' | 'qr' | 'connected' | 'loading'>('disconnected')
+  const [waWebQr, setWaWebQr] = useState<string | null>(null)
+  const [waWebLoading, setWaWebLoading] = useState(false)
+  const [selectedTag, setSelectedTag] = useState('')
+  const templateTextareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   // Dialog do botão Sistema removido
 
@@ -294,8 +303,11 @@ export default function ConfiguracoesPage() {
           if (cfg.whatsapp) setWhatsapp({
             phoneId: cfg.whatsapp?.phoneId || '',
             token: cfg.whatsapp?.token || '',
+            osShareSecret: cfg.whatsapp?.osShareSecret || '',
             templateName: cfg.whatsapp?.templateName || '',
             templateLang: cfg.whatsapp?.templateLang || 'pt_BR',
+            mode: cfg.whatsapp?.mode || 'cloud',
+            messageTemplate: cfg.whatsapp?.messageTemplate || '',
           })
         } else {
           if (res.status === 401) toast.error('Não autorizado. Faça login para ver configurações.')
@@ -329,6 +341,48 @@ export default function ConfiguracoesPage() {
       case 'final': return 'bg-green-100 text-green-800'
       case 'cancelado': return 'bg-red-100 text-red-800'
       default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  // Tags disponíveis para o template de mensagem da O.S.
+  const MESSAGE_TAGS = [
+    { value: 'clienteNome', label: 'Cliente - Nome' },
+    { value: 'numeroOS', label: 'Número da O.S.' },
+    { value: 'status', label: 'Status' },
+    { value: 'equipamentoModelo', label: 'Equipamento - Modelo' },
+    { value: 'equipamentoProblema', label: 'Equipamento - Problema' },
+    { value: 'previsaoEntrega', label: 'Previsão de Entrega' },
+    { value: 'categoria', label: 'Categoria' },
+    { value: 'descricaoServico', label: 'Descrição do Serviço' },
+    { value: 'valor', label: 'Valor' },
+    { value: 'valorEntrada', label: 'Valor de Entrada' },
+    { value: 'valorPago', label: 'Valor Pago' },
+    { value: 'formaPagamento', label: 'Forma de Pagamento' },
+    { value: 'rastreamentoExterno', label: 'Rastreamento Externo' },
+    { value: 'osLink', label: 'Link da O.S.' },
+  ]
+
+  // Insere a tag na posição do cursor do textarea
+  const insertTagAtCursor = (tag: string) => {
+    const placeholder = `{{${tag}}}`
+    const el = templateTextareaRef.current
+    if (el) {
+      const start = el.selectionStart ?? el.value.length
+      const end = el.selectionEnd ?? el.value.length
+      const current = whatsapp.messageTemplate || ''
+      const next = current.slice(0, start) + placeholder + current.slice(end)
+      setWhatsapp(prev => ({ ...prev, messageTemplate: next }))
+      setSelectedTag('')
+      setTimeout(() => {
+        try {
+          el.focus()
+          const caret = start + placeholder.length
+          el.setSelectionRange(caret, caret)
+        } catch {}
+      }, 0)
+    } else {
+      setWhatsapp(prev => ({ ...prev, messageTemplate: (prev.messageTemplate || '') + placeholder }))
+      setSelectedTag('')
     }
   }
 
@@ -658,6 +712,121 @@ export default function ConfiguracoesPage() {
       toast.error('Erro ao testar integração WhatsApp')
     } finally {
       setWaTesting(false)
+    }
+  }
+
+  const refreshWaWeb = async () => {
+     if (!waUnlocked) {
+       toast.error('Desbloqueie com a senha administrativa para ver o QR')
+       return
+     }
+     setWaWebLoading(true)
+     setWaWebState('loading')
+     const tryFetch = async (url: string) => {
+       const res = await fetch(url, { method: 'GET', headers: { 'x-admin-key': waAdminKey } })
+       const data = await res.json().catch(() => ({}))
+       return { res, data }
+     }
+     try {
+       // Primeiro tenta na mesma origem
+       let { res, data } = await tryFetch('/api/whatsapp-web/qr')
+       // Em dev, se origem está em :3000, tenta fallback para :3001
+       if ((!res.ok || !(data as any)?.ok) && typeof window !== 'undefined' && window.location.origin.includes(':3000')) {
+         const alt = window.location.origin.replace(':3000', ':3001') + '/api/whatsapp-web/qr'
+         ;({ res, data } = await tryFetch(alt))
+       }
+
+       if (res.ok && (data as any)?.ok) {
+         let state = (data as any)?.state as 'disconnected' | 'qr' | 'connected' | 'loading'
+         let qr = (data as any)?.qr || null
+         setWaWebState(state)
+         setWaWebQr(qr)
+         if (state === 'connected') {
+           toast.success('WhatsApp Web conectado')
+         }
+
+         // Se ainda estiver carregando ou sem QR, tenta fallback com Puppeteer
+         if (state === 'loading' || (state === 'qr' && !qr)) {
+           let fb = await tryFetch('/api/whatsapp-web/qr?fallback=1')
+           if ((!fb.res.ok || !(fb.data as any)?.ok) && typeof window !== 'undefined' && window.location.origin.includes(':3000')) {
+             const altFb = window.location.origin.replace(':3000', ':3001') + '/api/whatsapp-web/qr?fallback=1'
+             fb = await tryFetch(altFb)
+           }
+           if (fb.res.ok && (fb.data as any)?.ok) {
+             const fbState = (fb.data as any)?.state as 'disconnected' | 'qr' | 'connected' | 'loading'
+             const fbQr = (fb.data as any)?.qr || null
+             setWaWebState(fbState)
+             setWaWebQr(fbQr)
+             if (fbState === 'qr' && fbQr) {
+               toast.info('QR gerado via fallback. Abra o WhatsApp e escaneie.')
+             }
+           }
+         }
+       } else {
+         const err = (data as any)?.error || 'Falha ao obter status do WhatsApp Web'
+         toast.error(err)
+         setWaWebState('disconnected')
+         setWaWebQr(null)
+       }
+     } catch (e) {
+       console.error('Erro ao consultar WhatsApp Web:', e)
+       toast.error('Erro ao consultar WhatsApp Web')
+       setWaWebState('disconnected')
+       setWaWebQr(null)
+     } finally {
+       setWaWebLoading(false)
+     }
+   }
+
+  // Polling silencioso para manter o status atualizado sem exigir clique
+  const pollWaWebStatus = async () => {
+    if (!waUnlocked) return
+    try {
+      const res = await fetch('/api/whatsapp-web/qr', { method: 'GET', headers: { 'x-admin-key': waAdminKey } })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && (data as any)?.ok) {
+        const state = (data as any)?.state as 'disconnected' | 'qr' | 'connected' | 'loading'
+        const qr = (data as any)?.qr || null
+        setWaWebState(state)
+        setWaWebQr(qr)
+      }
+    } catch {}
+  }
+
+  useEffect(() => {
+    const run = () => pollWaWebStatus()
+    run()
+    const id = setInterval(run, 10000)
+    return () => clearInterval(id)
+  }, [waUnlocked, waAdminKey])
+
+  const resetWaWeb = async () => {
+    if (!waUnlocked) {
+      toast.error('Desbloqueie com a senha administrativa para resetar')
+      return
+    }
+    try {
+      setWaWebLoading(true)
+      setWaWebState('loading')
+      const res = await fetch('/api/whatsapp-web/reset?clearSession=1', { method: 'GET', headers: { 'x-admin-key': waAdminKey } })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && (data as any)?.ok) {
+        toast.success((data as any)?.cleared ? 'Sessão limpa e cliente reiniciado' : 'Cliente reiniciado')
+        await new Promise((r) => setTimeout(r, 1000))
+        await refreshWaWeb()
+      } else {
+        const errMsg = (data as any)?.error || 'Falha ao resetar WhatsApp Web'
+        toast.error(errMsg)
+        setWaWebState('disconnected')
+        setWaWebQr(null)
+      }
+    } catch (e) {
+      console.error('Erro ao resetar WhatsApp Web:', e)
+      toast.error('Erro ao resetar WhatsApp Web')
+      setWaWebState('disconnected')
+      setWaWebQr(null)
+    } finally {
+      setWaWebLoading(false)
     }
   }
 
@@ -1718,6 +1887,55 @@ export default function ConfiguracoesPage() {
                       </div>
                     </div>
                     <div className="grid gap-2">
+                      <Label htmlFor="waLinkSecret">Segredo de Link</Label>
+                      <div className="relative">
+                        <Input
+                          id="waLinkSecret"
+                          type={showWaSecret ? 'text' : 'password'}
+                          value={whatsapp.osShareSecret || ''}
+                          onChange={(e) => setWhatsapp({ ...whatsapp, osShareSecret: e.target.value })}
+                          placeholder="********"
+                        />
+                        <div className="absolute right-0 top-0 h-full flex items-center gap-1 pr-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="px-2 hover:bg-transparent"
+                            onClick={() => setShowWaSecret(!showWaSecret)}
+                          >
+                            {showWaSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="px-2"
+                            onClick={() => {
+                              try {
+                                const arr = new Uint8Array(32)
+                                if (typeof window !== 'undefined' && window.crypto?.getRandomValues) {
+                                  window.crypto.getRandomValues(arr)
+                                } else {
+                                  for (let i = 0; i < arr.length; i++) arr[i] = Math.floor(Math.random() * 256)
+                                }
+                                const hex = Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('')
+                                setWhatsapp(prev => ({ ...prev, osShareSecret: hex }))
+                                toast.success('Segredo gerado')
+                              } catch {
+                                const fallback = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)
+                                setWhatsapp(prev => ({ ...prev, osShareSecret: fallback }))
+                                toast.success('Segredo gerado')
+                              }
+                            }}
+                          >
+                            Gerar
+                          </Button>
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-500">Mantemos o segredo salvo no servidor. Envie vazio para limpar; use “********” para manter.</p>
+                    </div>
+                    <div className="grid gap-2">
                       <Label htmlFor="waTplName">Template Name (opcional)</Label>
                       <Input
                         id="waTplName"
@@ -1735,6 +1953,53 @@ export default function ConfiguracoesPage() {
                         placeholder="pt_BR"
                       />
                     </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="waMode">Modo de envio</Label>
+                      <Select value={whatsapp.mode} onValueChange={(value) => setWhatsapp({ ...whatsapp, mode: value })}>
+                        <SelectTrigger id="waMode">
+                          <SelectValue placeholder="Selecione o modo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="cloud">Cloud API (Meta)</SelectItem>
+                          <SelectItem value="web">WhatsApp Web</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-slate-500">
+                        Escolha entre enviar via API oficial ou pelo WhatsApp Web autenticado por QR.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="waMsgTpl">Template de mensagem</Label>
+                      <Textarea
+                        id="waMsgTpl"
+                        ref={templateTextareaRef}
+                        value={whatsapp.messageTemplate}
+                        onChange={(e) => setWhatsapp({ ...whatsapp, messageTemplate: e.target.value })}
+                        placeholder="Ex.: Olá {{clienteNome}}, sua O.S. {{numeroOS}} está com status: {{status}}. Veja detalhes em {{osLink}}"
+                        rows={6}
+                      />
+                      <div className="flex items-center gap-2">
+                        <Select value={selectedTag} onValueChange={(value) => setSelectedTag(value)}>
+                          <SelectTrigger className="w-64">
+                            <SelectValue placeholder="Selecione uma tag" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {MESSAGE_TAGS.map(t => (
+                              <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button type="button" variant="outline" onClick={() => selectedTag && insertTagAtCursor(selectedTag)} disabled={!selectedTag}>
+                          Inserir tag
+                        </Button>
+                      </div>
+                      <p className="text-xs text-slate-500">
+                         Use tags da O.S. com {'{{chaves}}'}. Ex.: {'{{clienteNome}}'}, {'{{numeroOS}}'}, {'{{status}}'}, {'{{osLink}}'}.
+                       </p>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-2">
                       <Button className="w-full" onClick={saveWhatsapp}>
                         <Save className="w-4 h-4 mr-2" />
@@ -1744,6 +2009,43 @@ export default function ConfiguracoesPage() {
                         {waTesting ? 'Testando...' : 'Testar integração'}
                       </Button>
                     </div>
+
+                    {whatsapp.mode === 'web' && (
+                      <div className="grid gap-3 p-3 border rounded-md">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div>
+                              <p className="text-sm font-medium">Status WhatsApp Web</p>
+                              <p className="text-xs text-slate-500">{waWebState === 'connected' ? 'Conectado' : waWebState === 'qr' ? 'Aguardando leitura do QR' : waWebState === 'loading' ? 'Carregando...' : 'Desconectado'}</p>
+                            </div>
+                            <Badge className={
+                              waWebState === 'connected' ? 'bg-green-600 text-white' :
+                              waWebState === 'qr' ? 'bg-yellow-500 text-white' :
+                              waWebState === 'loading' ? 'bg-blue-600 text-white animate-pulse' :
+                              'bg-red-600 text-white'
+                            }>
+                              {waWebState === 'connected' ? 'Conectado' : waWebState === 'qr' ? 'QR aguardando' : waWebState === 'loading' ? 'Carregando' : 'Desconectado'}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button type="button" variant="outline" onClick={refreshWaWeb} disabled={waWebLoading}>
+                              {waWebLoading ? 'Atualizando...' : 'Atualizar QR/Status'}
+                            </Button>
+                            <Button type="button" variant="destructive" onClick={resetWaWeb} disabled={waWebLoading}>
+                              {waWebLoading ? 'Resetando...' : 'Resetar conexão'}
+                            </Button>
+                          </div>
+                        </div>
+                        {waWebQr && waWebState !== 'connected' && (
+                          <div className="flex items-center justify-center">
+                            <img src={waWebQr} alt="QR WhatsApp Web" className="w-64 h-64 border rounded-md" />
+                          </div>
+                        )}
+                        {waWebState === 'connected' && (
+                          <p className="text-xs text-green-600">WhatsApp Web está conectado e pronto para enviar.</p>
+                        )}
+                      </div>
+                    )}
                   </>
                 )}
               </CardContent>

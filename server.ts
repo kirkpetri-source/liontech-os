@@ -4,9 +4,13 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import next from 'next';
 
+// Ensure ws optional native modules are disabled to avoid runtime errors
+process.env.WS_NO_BUFFER_UTIL = process.env.WS_NO_BUFFER_UTIL || '1'
+process.env.WS_NO_UTF_8_VALIDATE = process.env.WS_NO_UTF_8_VALIDATE || '1'
+
 const dev = process.env.NODE_ENV !== 'production';
 const currentPort = Number(process.env.PORT ?? 3000);
-const hostname = '127.0.0.1';
+const hostname = process.env.HOST ?? (dev ? '127.0.0.1' : '0.0.0.0');
 
 // Custom server with Socket.IO integration
 async function createCustomServer() {
