@@ -10,6 +10,8 @@ services:
     volumes:
       # Persist WhatsApp Web session across restarts
       - ./db/whatsapp-web-session:/app/db/whatsapp-web-session
+      # Persist uploads (logos e arquivos públicos)
+      - ./public/uploads:/app/public/uploads
     # Healthcheck (optional): waits for HTTP 200 on root
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/"]

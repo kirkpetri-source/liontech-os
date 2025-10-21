@@ -68,7 +68,21 @@ Crie os seguintes secrets em `Settings → Secrets and variables → Actions`:
 - O bind `HOST=0.0.0.0` permite acesso externo dentro de containers.
 - Use proxy reverso (Nginx) para HTTPS; peça um bloco pronto se precisar.
 
+## Persistência de uploads
+- O `docker-compose.yml` inclui o volume `./public/uploads:/app/public/uploads` para persistir logos e arquivos públicos.
+- Logos enviados via `/api/uploads/logo` são salvos em `public/uploads/logos` e servidos como `/uploads/logos/<arquivo>`.
+- Se ver `404` para imagens, confira se o volume está montado e o arquivo existe em `public/uploads/logos` no servidor.
+
+## WhatsApp Web em serverless
+- Em ambientes serverless (ex.: Vercel), o WhatsApp Web é desativado automaticamente. A rota `GET /api/whatsapp-web/qr` retornará `503`.
+- Para desativar manualmente em qualquer ambiente, defina `DISABLE_WHATSAPP_WEB=true` no `.env`.
+- Use o modo Cloud:
+  - `POST /api/whatsapp/send` para enviar mensagens usando a Cloud API.
+  - `GET /api/whatsapp/test` e `GET /api/whatsapp/diagnostics` para validar configuração.
+
 ## Troubleshooting
 - **Deploy job falhou**: verifique se os secrets estão configurados e se o `SERVER_APP_DIR` contém `docker-compose.yml` e `.env.production`.
 - **Chromium não inicia**: garanta que o servidor é x86_64 com as libs instaladas; esta imagem inclui dependências padrão.
 - **WhatsApp desconecta**: a sessão persiste em `db/whatsapp-web-session`; reinícios não exigem novo login.
+- **QR 503**: o WhatsApp Web está desativado (serverless ou `DISABLE_WHATSAPP_WEB=true`). Utilize o modo Cloud.
+- **Imagem 404**: verifique o volume `public/uploads` e a existência do arquivo em `public/uploads/logos`.
