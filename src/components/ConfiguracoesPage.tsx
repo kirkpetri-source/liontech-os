@@ -817,6 +817,13 @@ export default function ConfiguracoesPage() {
     return () => clearInterval(id)
   }, [waUnlocked, waAdminKey, waWebState])
 
+  // Se WhatsApp Web estiver desativado, force o modo para Cloud
+  useEffect(() => {
+    if (waWebState === 'disabled' && whatsapp.mode === 'web') {
+      setWhatsapp(prev => ({ ...prev, mode: 'cloud' }))
+    }
+  }, [waWebState, whatsapp.mode])
+
   const resetWaWeb = async () => {
     if (!waUnlocked) {
       toast.error('Desbloqueie com a senha administrativa para resetar')
@@ -1977,13 +1984,22 @@ export default function ConfiguracoesPage() {
 
                     <div className="grid gap-2">
                       <Label htmlFor="waMode">Modo de envio</Label>
-                      <Select value={whatsapp.mode} onValueChange={(value) => setWhatsapp({ ...whatsapp, mode: value })}>
+                      <Select value={whatsapp.mode} onValueChange={(value) => {
+                        if (value === 'web' && waWebState === 'disabled') {
+                          toast.error('WhatsApp Web não é suportado neste ambiente. Usando Cloud API.')
+                          setWhatsapp({ ...whatsapp, mode: 'cloud' })
+                        } else {
+                          setWhatsapp({ ...whatsapp, mode: value })
+                        }
+                      }}>
                         <SelectTrigger id="waMode">
                           <SelectValue placeholder="Selecione o modo" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="cloud">Cloud API (Meta)</SelectItem>
-                          <SelectItem value="web">WhatsApp Web</SelectItem>
+                          {waWebState !== 'disabled' && (
+                            <SelectItem value="web">WhatsApp Web</SelectItem>
+                          )}
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-slate-500">
