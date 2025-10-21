@@ -20,6 +20,10 @@ const nextConfig: NextConfig = {
     // 构建时忽略ESLint错误
     ignoreDuringBuilds: true,
   },
+  // Evita que o tracer do Next inclua/avalie diretórios locais não necessários no build da Vercel
+  outputFileTracingExcludes: {
+    '/*': ['db/**', 'db/whatsapp-web-session/**', '.wwebjs_cache/**']
+  }
 };
 
 export default nextConfig;
