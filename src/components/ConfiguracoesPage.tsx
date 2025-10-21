@@ -720,6 +720,10 @@ export default function ConfiguracoesPage() {
        toast.error('Desbloqueie com a senha administrativa para ver o QR')
        return
      }
+     if (waWebState === 'disabled') {
+       toast.error('WhatsApp Web não é suportado neste ambiente. Use deploy Docker + servidor.')
+       return
+     }
      setWaWebLoading(true)
      setWaWebState('loading')
      const tryFetch = async (url: string) => {
@@ -816,6 +820,10 @@ export default function ConfiguracoesPage() {
   const resetWaWeb = async () => {
     if (!waUnlocked) {
       toast.error('Desbloqueie com a senha administrativa para resetar')
+      return
+    }
+    if (waWebState === 'disabled') {
+      toast.error('Reset indisponível neste ambiente. Use deploy Docker + servidor.')
       return
     }
     try {
@@ -2042,10 +2050,10 @@ export default function ConfiguracoesPage() {
                             </Badge>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Button type="button" variant="outline" onClick={refreshWaWeb} disabled={waWebLoading}>
+                            <Button type="button" variant="outline" onClick={refreshWaWeb} disabled={waWebLoading || waWebState === 'disabled'}>
                               {waWebLoading ? 'Atualizando...' : 'Atualizar QR/Status'}
                             </Button>
-                            <Button type="button" variant="destructive" onClick={resetWaWeb} disabled={waWebLoading}>
+                            <Button type="button" variant="destructive" onClick={resetWaWeb} disabled={waWebLoading || waWebState === 'disabled'}>
                               {waWebLoading ? 'Resetando...' : 'Resetar conexão'}
                             </Button>
                           </div>
