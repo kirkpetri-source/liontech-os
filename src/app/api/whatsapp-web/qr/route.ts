@@ -13,6 +13,7 @@ export async function GET(request: Request) {
       const res = NextResponse.json({ ok: false, state: 'disabled', error: 'WhatsApp Web não é suportado neste ambiente. Use deploy Docker + servidor.' }, { status: 503 })
       res.headers.set('Access-Control-Allow-Origin', '*')
       res.headers.set('Access-Control-Allow-Headers', '*')
+      res.headers.set('Retry-After', '600')
       return res
     }
 

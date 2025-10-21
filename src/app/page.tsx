@@ -38,7 +38,7 @@ export default function Home() {
   const { user, logout } = useAuth()
   const [activeTab, setActiveTab] = useState('dashboard')
   const [showOSForm, setShowOSForm] = useState(false)
-  const [waWebHeaderState, setWaWebHeaderState] = useState<'connected' | 'qr' | 'loading' | 'disconnected' | null>(null)
+  const [waWebHeaderState, setWaWebHeaderState] = useState<'connected' | 'qr' | 'loading' | 'disconnected' | 'disabled' | null>(null)
 
   // Dados dinâmicos
   const [ordens, setOrdens] = useState<any[]>([])
@@ -93,12 +93,17 @@ export default function Home() {
 
   // Indicador de status do WhatsApp Web no cabeçalho (polling)
   useEffect(() => {
+    if (waWebHeaderState === 'disabled') return
     const run = async () => {
       try {
         const res = await fetch('/api/whatsapp-web/qr', { method: 'GET' })
         const data = await res.json().catch(() => ({}))
+        if (res.status === 503) {
+          setWaWebHeaderState('disabled')
+          return
+        }
         if (res.ok && (data as any)?.ok) {
-          const state = (data as any)?.state as 'connected' | 'qr' | 'loading' | 'disconnected'
+          const state = (data as any)?.state as 'connected' | 'qr' | 'loading' | 'disconnected' | 'disabled'
           setWaWebHeaderState(state)
         } else {
           setWaWebHeaderState('disconnected')
@@ -110,7 +115,7 @@ export default function Home() {
     run()
     const id = setInterval(run, 10000)
     return () => clearInterval(id)
-  }, [])
+  }, [waWebHeaderState])
 
   // Se não estiver autenticado, mostrar página de login
   if (!user) {
@@ -210,14 +215,14 @@ export default function Home() {
               {/* Indicador pequeno de status do WhatsApp Web */}
               <div
                 className="relative w-8 h-8 flex items-center justify-center rounded-md border border-slate-200"
-                title={`WhatsApp Web: ${waWebHeaderState === 'connected' ? 'Conectado' : waWebHeaderState === 'qr' ? 'QR aguardando' : waWebHeaderState === 'loading' ? 'Carregando' : 'Desconectado'}`}
+                title={`WhatsApp Web: ${waWebHeaderState === 'connected' ? 'Conectado' : waWebHeaderState === 'qr' ? 'QR aguardando' : waWebHeaderState === 'loading' ? 'Carregando' : waWebHeaderState === 'disabled' ? 'Desativado' : 'Desconectado'}`}
               >
                 <Smartphone
-                  className={`w-4 h-4 ${waWebHeaderState === 'connected' ? 'text-green-600' : waWebHeaderState === 'qr' ? 'text-yellow-600' : waWebHeaderState === 'loading' ? 'text-blue-600' : 'text-red-600'}`}
+                  className={`w-4 h-4 ${waWebHeaderState === 'connected' ? 'text-green-600' : waWebHeaderState === 'qr' ? 'text-yellow-600' : waWebHeaderState === 'loading' ? 'text-blue-600' : waWebHeaderState === 'disabled' ? 'text-slate-500' : 'text-red-600'}`}
                 />
                 <span
-                  className={`absolute -right-1 -bottom-1 w-2 h-2 rounded-full ${waWebHeaderState === 'connected' ? 'bg-green-500' : waWebHeaderState === 'qr' ? 'bg-yellow-500' : waWebHeaderState === 'loading' ? 'bg-blue-500 animate-pulse' : 'bg-red-500'}`}
-                />
+                    className={`absolute -right-1 -bottom-1 w-2 h-2 rounded-full ${waWebHeaderState === 'connected' ? 'bg-green-500' : waWebHeaderState === 'qr' ? 'bg-yellow-500' : waWebHeaderState === 'loading' ? 'bg-blue-500 animate-pulse' : waWebHeaderState === 'disabled' ? 'bg-slate-400' : 'bg-red-500'}`}
+                  />
               </div>
               <Button size="sm" onClick={() => setShowOSForm(true)}>
                 <Plus className="w-4 h-4 mr-2" />

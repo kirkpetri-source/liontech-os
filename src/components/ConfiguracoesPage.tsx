@@ -188,7 +188,7 @@ export default function ConfiguracoesPage() {
   const [showWaToken, setShowWaToken] = useState(false)
   const [showWaSecret, setShowWaSecret] = useState(false)
   const [showWaPass, setShowWaPass] = useState(false)
-  const [waWebState, setWaWebState] = useState<'disconnected' | 'qr' | 'connected' | 'loading'>('disconnected')
+  const [waWebState, setWaWebState] = useState<'disconnected' | 'qr' | 'connected' | 'loading' | 'disabled'>('disconnected')
   const [waWebQr, setWaWebQr] = useState<string | null>(null)
   const [waWebLoading, setWaWebLoading] = useState(false)
   const [selectedTag, setSelectedTag] = useState('')
@@ -763,10 +763,17 @@ export default function ConfiguracoesPage() {
            }
          }
        } else {
-         const err = (data as any)?.error || 'Falha ao obter status do WhatsApp Web'
-         toast.error(err)
-         setWaWebState('disconnected')
-         setWaWebQr(null)
+         if (res.status === 503) {
+           const err = (data as any)?.error || 'WhatsApp Web não é suportado neste ambiente.'
+           toast.error(err)
+           setWaWebState('disabled')
+           setWaWebQr(null)
+         } else {
+           const err = (data as any)?.error || 'Falha ao obter status do WhatsApp Web'
+           toast.error(err)
+           setWaWebState('disconnected')
+           setWaWebQr(null)
+         }
        }
      } catch (e) {
        console.error('Erro ao consultar WhatsApp Web:', e)
@@ -780,12 +787,17 @@ export default function ConfiguracoesPage() {
 
   // Polling silencioso para manter o status atualizado sem exigir clique
   const pollWaWebStatus = async () => {
-    if (!waUnlocked) return
+    if (!waUnlocked || waWebState === 'disabled') return
     try {
       const res = await fetch('/api/whatsapp-web/qr', { method: 'GET', headers: { 'x-admin-key': waAdminKey } })
       const data = await res.json().catch(() => ({}))
+      if (res.status === 503) {
+        setWaWebState('disabled')
+        setWaWebQr(null)
+        return
+      }
       if (res.ok && (data as any)?.ok) {
-        const state = (data as any)?.state as 'disconnected' | 'qr' | 'connected' | 'loading'
+        const state = (data as any)?.state as 'disconnected' | 'qr' | 'connected' | 'loading' | 'disabled'
         const qr = (data as any)?.qr || null
         setWaWebState(state)
         setWaWebQr(qr)
@@ -794,11 +806,12 @@ export default function ConfiguracoesPage() {
   }
 
   useEffect(() => {
+    if (!waUnlocked || waWebState === 'disabled') return
     const run = () => pollWaWebStatus()
     run()
     const id = setInterval(run, 10000)
     return () => clearInterval(id)
-  }, [waUnlocked, waAdminKey])
+  }, [waUnlocked, waAdminKey, waWebState])
 
   const resetWaWeb = async () => {
     if (!waUnlocked) {
@@ -2016,15 +2029,16 @@ export default function ConfiguracoesPage() {
                           <div className="flex items-center gap-3">
                             <div>
                               <p className="text-sm font-medium">Status WhatsApp Web</p>
-                              <p className="text-xs text-slate-500">{waWebState === 'connected' ? 'Conectado' : waWebState === 'qr' ? 'Aguardando leitura do QR' : waWebState === 'loading' ? 'Carregando...' : 'Desconectado'}</p>
+                              <p className="text-xs text-slate-500">{waWebState === 'connected' ? 'Conectado' : waWebState === 'qr' ? 'Aguardando leitura do QR' : waWebState === 'loading' ? 'Carregando...' : waWebState === 'disabled' ? 'Não suportado neste ambiente' : 'Desconectado'}</p>
                             </div>
                             <Badge className={
                               waWebState === 'connected' ? 'bg-green-600 text-white' :
                               waWebState === 'qr' ? 'bg-yellow-500 text-white' :
                               waWebState === 'loading' ? 'bg-blue-600 text-white animate-pulse' :
+                              waWebState === 'disabled' ? 'bg-slate-500 text-white' :
                               'bg-red-600 text-white'
                             }>
-                              {waWebState === 'connected' ? 'Conectado' : waWebState === 'qr' ? 'QR aguardando' : waWebState === 'loading' ? 'Carregando' : 'Desconectado'}
+                              {waWebState === 'connected' ? 'Conectado' : waWebState === 'qr' ? 'QR aguardando' : waWebState === 'loading' ? 'Carregando' : waWebState === 'disabled' ? 'Desativado' : 'Desconectado'}
                             </Badge>
                           </div>
                           <div className="flex items-center gap-2">
