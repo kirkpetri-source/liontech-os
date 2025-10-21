@@ -1,3 +1,5 @@
+export const runtime = 'nodejs'
+
 import { NextResponse } from 'next/server'
 import { resetClient } from '@/lib/whatsapp-web'
 import fs from 'fs'
@@ -5,6 +7,14 @@ import path from 'path'
 
 export async function GET(request: Request) {
   try {
+    // Bloquear ação de reset que toca filesystem em ambientes serverless (ex.: Vercel)
+    if (process.env.VERCEL === '1' || process.env.DISABLE_WHATSAPP_WEB === 'true') {
+      const res = NextResponse.json({ ok: false, error: 'Reset indisponível neste ambiente. Use deploy Docker + servidor.' }, { status: 503 })
+      res.headers.set('Access-Control-Allow-Origin', '*')
+      res.headers.set('Access-Control-Allow-Headers', '*')
+      return res
+    }
+
     const url = new URL(request.url)
     const clear = url.searchParams.get('clearSession') === '1'
 

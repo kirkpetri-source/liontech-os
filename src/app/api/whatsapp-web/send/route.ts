@@ -182,6 +182,14 @@ function applyTemplate(tpl: string, os: any, url: string, empresa: any) {
 
 export async function POST(req: Request) {
   try {
+    // Bloquear em ambientes serverless (ex.: Vercel), que não suportam WhatsApp Web + Chromium
+    if (process.env.VERCEL === '1' || process.env.DISABLE_WHATSAPP_WEB === 'true') {
+      const res = NextResponse.json({ error: 'WhatsApp Web não é suportado neste ambiente. Use deploy Docker + servidor.' }, { status: 503 })
+      res.headers.set('Access-Control-Allow-Origin', '*')
+      res.headers.set('Access-Control-Allow-Headers', '*')
+      return res
+    }
+
     await ensureClient()
 
     const { osId, to: toRaw, mode } = await req.json()

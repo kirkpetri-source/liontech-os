@@ -10,3 +10,6 @@ dev.log
 serviceAccountKey.json
 public/uploads/
 db/*.db
+db/whatsapp-web-session/
+.wwebjs_cache/
+qr-test.txt

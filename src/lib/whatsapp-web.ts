@@ -61,6 +61,14 @@ async function initClient(): Promise<Client> {
   if (store.client) return store.client
   if (store.initializing) return store.initializing
 
+  // Bloquear em ambientes serverless (ex.: Vercel), que não suportam Chromium + filesystem persistente
+  if (process.env.VERCEL === '1' || process.env.DISABLE_WHATSAPP_WEB === 'true') {
+    const err = new Error('WhatsApp Web desabilitado neste ambiente (serverless).')
+    store.state.lastError = err.message
+    store.state.ts = Date.now()
+    throw err
+  }
+
   // Avoid optional native extensions issues in ws
   process.env.WS_NO_BUFFER_UTIL = '1'
   process.env.WS_NO_UTF_8_VALIDATE = '1'

@@ -8,6 +8,14 @@ if (!g.__waQrFallbackAt) g.__waQrFallbackAt = 0
 
 export async function GET(request: Request) {
   try {
+    // Bloquear em ambientes serverless (ex.: Vercel), que não suportam WhatsApp Web + Chromium
+    if (process.env.VERCEL === '1' || process.env.DISABLE_WHATSAPP_WEB === 'true') {
+      const res = NextResponse.json({ ok: false, state: 'disabled', error: 'WhatsApp Web não é suportado neste ambiente. Use deploy Docker + servidor.' }, { status: 503 })
+      res.headers.set('Access-Control-Allow-Origin', '*')
+      res.headers.set('Access-Control-Allow-Headers', '*')
+      return res
+    }
+
     // Inicializa de forma assíncrona para não bloquear a resposta
     ensureClient().catch(() => null)
 
