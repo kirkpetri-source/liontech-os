@@ -365,6 +365,69 @@ export async function POST(req: Request) {
       const scheme = host.includes('localhost') || host.startsWith('127.0.0.1') ? 'http' : 'https'
       const baseHref = `${scheme}://${host}`
 
+      const isServerless = process.env.VERCEL === '1' || process.env.DISABLE_PUPPETEER === 'true'
+      if (isServerless) {
+        if (!os) {
+          if (!osId) return NextResponse.json({ error: 'osId é obrigatório para fallback de link' }, { status: 400 })
+          const osSnap = await adminDb.collection('ordens').doc(osId).get()
+          os = osSnap.data()
+          if (!os) return NextResponse.json({ error: 'Ordem não encontrada' }, { status: 404 })
+        }
+
+        const secret = (cfg?.whatsapp?.osShareSecret) || process.env.OS_SHARE_SECRET || process.env.ADMIN_CONFIG_PASSWORD
+        if (!secret) {
+          return NextResponse.json({ error: 'Segredo de link ausente. Defina em Configurações > WhatsApp ou via variável de ambiente.' }, { status: 500 })
+        }
+        const shareToken = crypto.createHmac('sha256', secret).update(osId || (os.id || '')).digest('hex')
+        const url = `${baseHref}/os/${osId || os.id}?t=${shareToken}`
+        const previsao = os?.previsaoEntrega
+          ? (String(os.previsaoEntrega).includes('T')
+              ? new Date(os.previsaoEntrega).toLocaleString('pt-BR')
+              : new Date(os.previsaoEntrega).toLocaleDateString('pt-BR'))
+          : 'Não definida'
+        const tpl = String(cfg?.whatsapp?.messageTemplate || '')
+        const body = tpl.trim()
+          ? applyTemplate(tpl, { ...os, previsaoEntrega: previsao }, url, empresa)
+          : [
+              `Olá ${os.clienteNome}, aqui é da ${empresa.nome || 'Lion Tech'}.`,
+              `Sua O.S. ${os.numeroOS} está com status: ${os.status}.`,
+              `Previsão: ${previsao}`,
+              `Veja sua O.S.: ${url}`
+            ].filter(Boolean).join('\n')
+
+        const sendRes = await fetch(`https://graph.facebook.com/v20.0/${phoneId}/messages`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json; charset=UTF-8',
+            Accept: 'application/json'
+          },
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to,
+            type: 'text',
+            text: { body, preview_url: true }
+          })
+        })
+
+        if (!sendRes.ok) {
+          const errText = await sendRes.text()
+          const parsed = parseGraphError(errText)
+          const status = parsed.code === 190 ? 401
+            : parsed.code === 10 ? 403
+            : parsed.code === 100 ? 400
+            : parsed.code === 131030 ? 403
+            : parsed.code === 131047 ? 409
+            : parsed.code === 133010 ? 403
+            : sendRes.status >= 400 ? sendRes.status : 500
+          return NextResponse.json({ error: parsed.error, code: parsed.code, message: parsed.message, details: errText }, { status })
+        }
+
+        const sent = await sendRes.json()
+        return NextResponse.json({ ok: true, mode: 'link', url, message: sent, serverlessFallback: true }, { status: 200 })
+      }
+
       const html = buildHtml(os, empresa, imp, baseHref)
       const browser = await puppeteer.launch({ args: ['--no-sandbox'], headless: true })
       const page = await browser.newPage()
