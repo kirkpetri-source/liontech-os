@@ -19,6 +19,7 @@ import {
   Search,
   Filter
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface Cliente {
   id: string
@@ -77,6 +78,9 @@ export default function ClientesPage() {
           const updated = await res.json();
           setClientes(clientes.map(c => c.id === updated.id ? updated : c));
           setEditingCliente(null)
+        } else {
+          const errBody = await res.json().catch(() => ({}))
+          toast.error(errBody?.error || 'Falha ao atualizar cliente')
         }
       } else {
         const res = await fetch('/api/clientes', {
@@ -87,10 +91,14 @@ export default function ClientesPage() {
         if (res.ok) {
           const created = await res.json();
           setClientes([...clientes, created]);
+        } else {
+          const errBody = await res.json().catch(() => ({}))
+          toast.error(errBody?.error || 'Falha ao salvar cliente')
         }
       }
     } catch (err) {
       console.error('Erro ao salvar cliente:', err);
+      toast.error('Falha ao salvar cliente')
     }
 
     setFormData({ nome: '', whatsapp: '' })

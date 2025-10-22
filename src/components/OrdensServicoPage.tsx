@@ -39,6 +39,7 @@ import { toast } from 'sonner'
 interface OrdemServico {
   id: string
   numeroOS: string
+  clienteId: string
   clienteNome: string
   clienteWhatsapp: string
   equipamentoModelo: string
@@ -74,18 +75,36 @@ interface Status {
   cor?: string
 }
 
+interface Cliente {
+  id: string
+  nome: string
+  whatsapp: string
+  createdAt?: string
+}
+
 export default function OrdensServicoPage() {
   const [showForm, setShowForm] = useState(false)
   const [editingOS, setEditingOS] = useState<OrdemServico | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('Todos')
-  const [isFilterOpen, setIsFilterOpen] = useState(false)
-  const [ordensServico, setOrdensServico] = useState<OrdemServico[]>([])
+const [isFilterOpen, setIsFilterOpen] = useState(false)
+const [ordensServico, setOrdensServico] = useState<OrdemServico[]>([])
 
-  const [categorias, setCategorias] = useState<Categoria[]>([])
-  const [statusList, setStatusList] = useState<Status[]>([])
-  const [loadingCategorias, setLoadingCategorias] = useState(true)
-  const [loadingStatus, setLoadingStatus] = useState(true)
+const [categorias, setCategorias] = useState<Categoria[]>([])
+const [statusList, setStatusList] = useState<Status[]>([])
+const [loadingCategorias, setLoadingCategorias] = useState(true)
+const [loadingStatus, setLoadingStatus] = useState(true)
+
+// Clientes: busca/seleção/cadastro inline
+const [clientes, setClientes] = useState<Cliente[]>([])
+const [loadingClientes, setLoadingClientes] = useState(false)
+const [clienteBusca, setClienteBusca] = useState('')
+const [clienteResultados, setClienteResultados] = useState<Cliente[]>([])
+const [clienteSelecionado, setClienteSelecionado] = useState<Cliente | null>(null)
+const [showNovoCliente, setShowNovoCliente] = useState(false)
+const [novoClienteNome, setNovoClienteNome] = useState('')
+const [novoClienteWhatsapp, setNovoClienteWhatsapp] = useState('')
+const [salvandoCliente, setSalvandoCliente] = useState(false)
 
   // Configurações carregadas do backend (empresa e impressão)
   const [empresaCfg, setEmpresaCfg] = useState<{
@@ -139,7 +158,7 @@ export default function OrdensServicoPage() {
         const response = await fetch('/api/ordens')
         if (response.ok) {
           const data = await response.json()
-          setOrdensServico(data)
+          setOrdensServico(Array.isArray(data) ? data.sort((a: OrdemServico, b: OrdemServico) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) : [])
         }
       } catch (error) {
         console.error('Erro ao buscar ordens de serviço:', error)
@@ -193,6 +212,46 @@ export default function OrdensServicoPage() {
     fetchStatus()
   }, [])
 
+  // Carregar clientes quando abrir o formulário
+  useEffect(() => {
+    if (!showForm) return
+    setLoadingClientes(true)
+    fetch('/api/clientes')
+      .then(r => r.ok ? r.json() : [])
+      .then((data) => {
+        setClientes(Array.isArray(data) ? data : [])
+        setLoadingClientes(false)
+      })
+      .catch(() => setLoadingClientes(false))
+  }, [showForm])
+
+  // Atualizar resultados de busca de clientes
+  useEffect(() => {
+    const raw = clienteBusca.trim()
+    if (!raw) { setClienteResultados([]); return }
+
+    const q = raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    const qDigits = raw.replace(/\D/g, '')
+
+    const results = clientes
+      .filter((c) => {
+        const name = (c.nome || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        const phoneDigits = (c.whatsapp || '').replace(/\D/g, '')
+        const nameMatch = q.length >= 1 && name.includes(q)
+        const phoneMatch = qDigits.length >= 3 && phoneDigits.includes(qDigits)
+        return nameMatch || phoneMatch
+      })
+      .slice(0, 6)
+    setClienteResultados(results)
+  }, [clienteBusca, clientes])
+
+  // Abrir cadastro automaticamente quando não houver resultados
+  useEffect(() => {
+    if (clienteSelecionado) return
+    const q = clienteBusca.trim()
+    if (q && clienteResultados.length === 0) setShowNovoCliente(true)
+  }, [clienteBusca, clienteResultados, clienteSelecionado])
+
   // Carregar configurações gerais (empresa e impressão)
   useEffect(() => {
     const fetchConfig = async () => {
@@ -209,13 +268,23 @@ export default function OrdensServicoPage() {
     fetchConfig()
   }, [])
 
+  // Persistência do filtro de status
+  useEffect(() => {
+    const saved = localStorage.getItem('osStatusFilter')
+    if (saved) setStatusFilter(saved)
+  }, [])
+
+  useEffect(() => {
+    localStorage.setItem('osStatusFilter', statusFilter)
+  }, [statusFilter])
+
   const filteredOrdens = ordensServico.filter(os => {
     const matchesSearch = 
       os.numeroOS.toLowerCase().includes(searchTerm.toLowerCase()) ||
       os.clienteNome.toLowerCase().includes(searchTerm.toLowerCase()) ||
       os.equipamentoModelo.toLowerCase().includes(searchTerm.toLowerCase())
     
-    const matchesStatus = statusFilter === 'Todos' || os.status === statusFilter
+    const matchesStatus = statusFilter === 'Todos' ? os.status !== 'Concluído' : os.status === statusFilter
     
     return matchesSearch && matchesStatus
   })
@@ -383,8 +452,46 @@ export default function OrdensServicoPage() {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSalvarNovoCliente = async () => {
+  if (!novoClienteNome.trim()) { toast.error('Informe o nome do cliente.'); return }
+  if (!isValidWhatsapp(novoClienteWhatsapp)) { toast.error('Informe um WhatsApp válido (10 ou 11 dígitos).'); return }
+  try {
+    setSalvandoCliente(true)
+    const res = await fetch('/api/clientes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nome: novoClienteNome, whatsapp: maskWhatsapp(novoClienteWhatsapp) }),
+    })
+    if (res.ok) {
+      const created = await res.json()
+      setClientes([created, ...clientes])
+      setClienteSelecionado(created)
+      setFormData({ ...formData, clienteNome: created.nome, clienteWhatsapp: created.whatsapp })
+      setShowNovoCliente(false)
+      setNovoClienteNome('')
+      setNovoClienteWhatsapp('')
+      setClienteBusca(created.nome)
+      setClienteResultados([])
+      toast.success('Cliente cadastrado e selecionado.')
+    } else {
+      const err = await res.json().catch(() => ({}))
+      toast.error(err?.error || 'Falha ao cadastrar cliente.')
+    }
+  } catch (e) {
+    console.error('Erro ao cadastrar cliente:', e)
+    toast.error('Erro ao cadastrar cliente.')
+  } finally {
+    setSalvandoCliente(false)
+  }
+}
+
+const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!clienteSelecionado) {
+      toast.error('Selecione ou cadastre um cliente antes de criar a O.S.')
+      return
+    }
 
     if (!isValidWhatsapp(formData.clienteWhatsapp)) {
       toast.error('Informe um WhatsApp válido (10 ou 11 dígitos).')
@@ -394,6 +501,7 @@ export default function OrdensServicoPage() {
     const numeroOS = editingOS ? editingOS.numeroOS : `OS-${String(ordensServico.length + 1).padStart(3, '0')}`
 
     const formattedData = {
+      clienteId: clienteSelecionado.id,
       clienteNome: formData.clienteNome.toUpperCase(),
       clienteWhatsapp: formData.clienteWhatsapp,
       equipamentoModelo: formData.equipamentoModelo.toUpperCase(),
@@ -438,10 +546,14 @@ export default function OrdensServicoPage() {
         if (res.ok) {
           const created = await res.json()
           setOrdensServico([...ordensServico, created])
+        } else {
+          const err = await res.json().catch(() => ({}))
+          toast.error(err?.error || 'Falha ao criar O.S. Verifique o cliente selecionado.')
         }
       }
     } catch (error) {
       console.error('Erro ao salvar ordem de serviço:', error)
+      toast.error('Erro ao salvar ordem de serviço')
     }
 
     setFormData({
@@ -613,18 +725,52 @@ export default function OrdensServicoPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ osId: os.id, mode: 'link' })
       })
+
       if (!res.ok) {
         let msg = 'Falha ao enviar pelo WhatsApp (Cloud)'
+        let code: number | null = null
         try {
           const err = await res.json()
           const parts = [err?.error, err?.message, err?.code ? `code ${err.code}` : null].filter(Boolean)
           if (parts.length) msg = parts.join(' - ')
+          if (typeof err?.code === 'number') code = err.code
         } catch {}
-        toast.error(msg)
+
+        // Fallback automático para WhatsApp Web quando Cloud API está indisponível ou não onboarded
+        const shouldFallback = res.status === 401 || res.status === 403 || code === 133010 || code === 10 || code === 190
+        if (shouldFallback) {
+          if (loadingId) (toast as any).dismiss?.(loadingId)
+          const loadingWebId = (toast as any).loading ? (toast as any).loading('Cloud falhou. Tentando via WhatsApp Web...') : null
+          try {
+            const webRes = await fetch('/api/whatsapp-web/send', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ osId: os.id, mode: 'link' })
+            })
+            if (webRes.ok) {
+              toast.success('Enviado via WhatsApp Web!')
+            } else {
+              let webMsg = 'Falha ao enviar pelo WhatsApp Web'
+              try {
+                const werr = await webRes.json()
+                const parts = [werr?.error, werr?.state].filter(Boolean)
+                if (parts.length) webMsg = parts.join(' - ')
+              } catch {}
+              toast.error(webMsg)
+            }
+          } catch (e) {
+            toast.error('Erro ao enviar pelo WhatsApp Web')
+          } finally {
+            if (loadingWebId) (toast as any).dismiss?.(loadingWebId)
+          }
+        } else {
+          toast.error(msg)
+        }
       } else {
         toast.success('Enviado via WhatsApp (Cloud)!')
       }
-      if (loadingId) (toast as any).dismiss?.(loadingId)
+
+      if ((toast as any).dismiss && loadingId) (toast as any).dismiss(loadingId)
     } catch (e) {
       toast.error('Erro ao enviar pelo WhatsApp (Cloud)')
     }
@@ -708,6 +854,90 @@ export default function OrdensServicoPage() {
                 {/* Dados do Cliente */}
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium text-slate-900 border-b pb-2">Dados do Cliente</h3>
+                  <div className="space-y-3">
+                    <div className="flex flex-col md:flex-row gap-2">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                        <Input
+                          placeholder="Buscar cliente por nome ou WhatsApp..."
+                          value={clienteBusca}
+                          onChange={(e) => setClienteBusca(e.target.value)}
+                          className="pl-10"
+                          disabled={loadingClientes}
+                        />
+                        {clienteResultados.length > 0 && (
+                          <div className="absolute z-10 mt-2 w-full bg-white border border-slate-200 rounded-md shadow-sm">
+                            {clienteResultados.map((c) => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center justify-between"
+                                onClick={() => {
+                                  setClienteSelecionado(c)
+                                  setFormData({ ...formData, clienteNome: c.nome, clienteWhatsapp: maskWhatsapp(c.whatsapp) })
+                                  setClienteBusca(c.nome)
+                                  setClienteResultados([])
+                                }}
+                              >
+                                <span className="font-medium">{c.nome}</span>
+                                <span className="text-slate-500 text-sm">{maskWhatsapp(c.whatsapp)}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <Button type="button" variant={showNovoCliente ? 'default' : 'outline'} onClick={() => setShowNovoCliente((v) => !v)}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        {showNovoCliente ? 'Cancelar' : 'Novo Cliente'}
+                      </Button>
+                    </div>
+                    {clienteBusca.trim() && clienteResultados.length === 0 && !clienteSelecionado && !loadingClientes && !showNovoCliente && (
+                      <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-md px-3 py-2" role="alert" aria-live="polite">
+                         <AlertCircle className="w-4 h-4" />
+                         <span>Nenhum cliente encontrado. Este cliente não está cadastrado. Clique em “Novo Cliente” para cadastrar e continuar.</span>
+                         <Button type="button" size="sm" className="ml-auto" onClick={() => setShowNovoCliente(true)}>
+                           <Plus className="w-4 h-4 mr-1" /> Cadastrar Cliente
+                         </Button>
+                       </div>
+                    )}
+                    {showNovoCliente && (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="novoClienteNome">Nome *</Label>
+                          <Input
+                            id="novoClienteNome"
+                            placeholder="Digite o nome do cliente"
+                            value={novoClienteNome}
+                            onChange={(e) => setNovoClienteNome(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="novoClienteWhatsapp">WhatsApp *</Label>
+                          <Input
+                            id="novoClienteWhatsapp"
+                            type="tel"
+                            placeholder="(00) 00000-0000"
+                            value={novoClienteWhatsapp}
+                            onChange={(e) => setNovoClienteWhatsapp(maskWhatsapp(e.target.value))}
+                            inputMode="numeric"
+                            autoComplete="tel"
+                          />
+                        </div>
+                        <div className="flex items-end">
+                          <Button type="button" onClick={handleSalvarNovoCliente} disabled={salvandoCliente}>
+                            {salvandoCliente ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" /> }
+                            Salvar e selecionar
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {clienteSelecionado && !showNovoCliente && (
+                    <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-md px-3 py-2 mb-2" role="status" aria-live="polite">
+                      <AlertCircle className="w-4 h-4" />
+                      <span>Cliente selecionado. Nome e WhatsApp ficam bloqueados aqui; edite na tela de Clientes.</span>
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="clienteNome">Nome do Cliente *</Label>
@@ -715,7 +945,10 @@ export default function OrdensServicoPage() {
                         id="clienteNome"
                         placeholder="Nome completo do cliente"
                         value={formData.clienteNome}
-                        onChange={(e) => setFormData({ ...formData, clienteNome: e.target.value })}
+                        onChange={!clienteSelecionado ? (e) => setFormData({ ...formData, clienteNome: e.target.value }) : undefined}
+                        readOnly={!!clienteSelecionado}
+                        aria-readonly={!!clienteSelecionado}
+                        className={clienteSelecionado ? 'bg-yellow-50 cursor-not-allowed' : undefined}
                         required
                       />
                     </div>
@@ -726,9 +959,12 @@ export default function OrdensServicoPage() {
                         type="tel"
                         placeholder="(00) 00000-0000"
                         value={formData.clienteWhatsapp}
-                        onChange={(e) => setFormData({ ...formData, clienteWhatsapp: maskWhatsapp(e.target.value) })}
+                        onChange={!clienteSelecionado ? (e) => setFormData({ ...formData, clienteWhatsapp: maskWhatsapp(e.target.value) }) : undefined}
+                        readOnly={!!clienteSelecionado}
+                        aria-readonly={!!clienteSelecionado}
                         inputMode="numeric"
                         autoComplete="tel"
+                        className={clienteSelecionado ? 'bg-yellow-50 cursor-not-allowed' : undefined}
                         required
                       />
                     </div>
@@ -1026,7 +1262,7 @@ export default function OrdensServicoPage() {
                 </div>
 
                 <div className="flex space-x-3 pt-4">
-                  <Button type="submit" className="flex-1">
+                  <Button type="submit" className="flex-1" disabled={!clienteSelecionado}>
                     <Save className="w-4 h-4 mr-2" />
                     {editingOS ? 'Atualizar' : 'Criar'} O.S.
                   </Button>
@@ -1111,6 +1347,25 @@ export default function OrdensServicoPage() {
             <Filter className="w-4 h-4 mr-2" />
             Filtros
           </Button>
+        </div>
+
+        {/* Atalhos de Status */}
+        <div className="flex flex-wrap gap-2 mb-6">
+          <Button
+            variant={statusFilter === 'Todos' ? 'default' : 'outline'}
+            onClick={() => setStatusFilter('Todos')}
+          >
+            Todos (oculta Concluídos)
+          </Button>
+          {statusList.map((s) => (
+            <Button
+              key={s.id}
+              variant={statusFilter === s.nome ? 'default' : 'outline'}
+              onClick={() => setStatusFilter(s.nome)}
+            >
+              {s.nome}
+            </Button>
+          ))}
         </div>
 
         {/* Dialogo de Filtros */}

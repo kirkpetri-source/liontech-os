@@ -7,6 +7,7 @@ import { requireAuth } from '@/lib/auth';
 type OrdemServico = {
   id?: string;
   numeroOS: string;
+  clienteId: string;
   clienteNome: string;
   clienteWhatsapp: string;
   equipamentoModelo: string;
@@ -56,6 +57,7 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as Partial<OrdemServico>;
     const required = [
+      'clienteId',
       'clienteNome',
       'clienteWhatsapp',
       'equipamentoModelo',
@@ -72,6 +74,7 @@ export async function POST(request: Request) {
 
     const os: OrdemServico = {
       numeroOS,
+      clienteId: String(body.clienteId),
       clienteNome: String(body.clienteNome).toUpperCase(),
       clienteWhatsapp: String(body.clienteWhatsapp),
       equipamentoModelo: String(body.equipamentoModelo).toUpperCase(),
@@ -93,6 +96,12 @@ export async function POST(request: Request) {
       formaPagamentoEntrada: body.formaPagamentoEntrada ? String(body.formaPagamentoEntrada) : undefined,
       createdAt: new Date().toISOString().split('T')[0],
     };
+
+    // Verificar existência do cliente
+    const clienteSnap = await adminDb.collection('clientes').doc(os.clienteId).get();
+    if (!clienteSnap.exists) {
+      return NextResponse.json({ error: 'Cliente não encontrado; cadastre ou selecione um cliente válido' }, { status: 400 });
+    }
 
     const ref = await adminDb.collection('ordens').add(os);
     const created = { id: ref.id, ...os };

@@ -26,6 +26,7 @@ export async function PUT(
 
     const passthroughKeys = [
       'numeroOS',
+      'clienteId',
       'clienteWhatsapp',
       'equipamentoSenha',
       'categoria',

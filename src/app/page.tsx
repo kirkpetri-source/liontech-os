@@ -93,6 +93,11 @@ export default function Home() {
 
   // Indicador de status do WhatsApp Web no cabeçalho (polling)
   useEffect(() => {
+    const headerPollingEnabled = process.env.NEXT_PUBLIC_ENABLE_WA_WEB_HEADER === 'true'
+    if (!headerPollingEnabled) {
+      setWaWebHeaderState('disabled')
+      return
+    }
     if (waWebHeaderState === 'disabled') return
     const run = async () => {
       try {
