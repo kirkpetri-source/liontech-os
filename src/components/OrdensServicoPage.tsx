@@ -82,8 +82,15 @@ interface Cliente {
   createdAt?: string
 }
 
-export default function OrdensServicoPage() {
+interface OrdensServicoPageProps {
+  openNewSignal?: number
+}
+
+export default function OrdensServicoPage({ openNewSignal = 0 }: OrdensServicoPageProps) {
   const [showForm, setShowForm] = useState(false)
+  useEffect(() => {
+    if (openNewSignal) setShowForm(true)
+  }, [openNewSignal])
   const [editingOS, setEditingOS] = useState<OrdemServico | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('Todos')

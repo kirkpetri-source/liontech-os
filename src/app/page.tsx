@@ -38,6 +38,7 @@ export default function Home() {
   const { user, logout } = useAuth()
   const [activeTab, setActiveTab] = useState('dashboard')
   const [showOSForm, setShowOSForm] = useState(false)
+  const [openNewOSSignal, setOpenNewOSSignal] = useState(0)
   const [waWebHeaderState, setWaWebHeaderState] = useState<'connected' | 'qr' | 'loading' | 'disconnected' | 'disabled' | null>(null)
 
   // Dados dinâmicos
@@ -229,7 +230,7 @@ export default function Home() {
                     className={`absolute -right-1 -bottom-1 w-2 h-2 rounded-full ${waWebHeaderState === 'connected' ? 'bg-green-500' : waWebHeaderState === 'qr' ? 'bg-yellow-500' : waWebHeaderState === 'loading' ? 'bg-blue-500 animate-pulse' : waWebHeaderState === 'disabled' ? 'bg-slate-400' : 'bg-red-500'}`}
                   />
               </div>
-              <Button size="sm" onClick={() => setShowOSForm(true)}>
+              <Button size="sm" onClick={() => { setActiveTab('ordens'); setOpenNewOSSignal((s) => s + 1) }}>
                 <Plus className="w-4 h-4 mr-2" />
                 Nova O.S.
               </Button>
@@ -377,7 +378,7 @@ export default function Home() {
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-2 gap-4">
-                        <Button className="h-20 flex-col space-y-2" onClick={() => setShowOSForm(true)}>
+                        <Button className="h-20 flex-col space-y-2" onClick={() => { setActiveTab('ordens'); setOpenNewOSSignal((s) => s + 1) }}>
                           <Plus className="w-6 h-6" />
                           <span>Nova O.S.</span>
                         </Button>
@@ -402,7 +403,7 @@ export default function Home() {
 
             {activeTab === 'clientes' && <ClientesPage />}
 
-            {activeTab === 'ordens' && <OrdensServicoPage />}
+            {activeTab === 'ordens' && <OrdensServicoPage openNewSignal={openNewOSSignal} />}
 
             {activeTab === 'relatorios' && (
               <div className="space-y-6">
