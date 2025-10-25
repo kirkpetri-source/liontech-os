@@ -722,6 +722,28 @@ const handleSubmit = async (e: React.FormEvent) => {
     ].filter(Boolean).join('\n')
   }
 
+  // Verifica se WhatsApp Web está suportado (evita fallback em Vercel/serverless)
+  const isWaWebSupported = async (): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/whatsapp-web/qr', { method: 'GET' })
+      if (res.status === 503) return false
+      const data = await res.json().catch(() => ({}))
+      return res.ok && data?.state !== 'disabled'
+    } catch {
+      return false
+    }
+  }
+
+  const explainCloudError = (code?: number): string | null => {
+    switch(code) {
+      case 190: return 'Access token inválido ou expirado. Atualize nas Configurações > WhatsApp.'
+      case 10: return 'Permissão insuficiente no token. Conceda escopos do WhatsApp e gere novo token.'
+      case 131030: return 'Destinatário não permitido. Adicione como Test Recipient ou publique o app.'
+      case 133010: return 'Número não onboarded na Cloud API. Complete o onboarding no WhatsApp Manager.'
+      default: return null
+    }
+  }
+
   const handleSendWhatsApp = async (os: OrdemServico) => {
     try {
       const loadingId = (toast as any).loading ? (toast as any).loading('Enviando link da O.S. via WhatsApp (Cloud)...') : null
@@ -747,6 +769,14 @@ const handleSubmit = async (e: React.FormEvent) => {
         const shouldFallback = res.status === 401 || res.status === 403 || code === 133010 || code === 10 || code === 190
         if (shouldFallback) {
           if (loadingId) (toast as any).dismiss?.(loadingId)
+
+          const supported = await isWaWebSupported()
+          if (!supported) {
+            const hint = explainCloudError(code ?? undefined)
+            toast.error(hint ? `${hint} Além disso, WhatsApp Web não é suportado neste ambiente.` : 'Cloud falhou e WhatsApp Web não é suportado neste ambiente. Use a Cloud API (Configurações > WhatsApp).')
+            return
+          }
+
           const loadingWebId = (toast as any).loading ? (toast as any).loading('Cloud falhou. Tentando via WhatsApp Web...') : null
           try {
             const webRes = await fetch('/api/whatsapp-web/send', {
@@ -771,7 +801,8 @@ const handleSubmit = async (e: React.FormEvent) => {
             if (loadingWebId) (toast as any).dismiss?.(loadingWebId)
           }
         } else {
-          toast.error(msg)
+          const hint = explainCloudError(code ?? undefined)
+          toast.error(hint || msg)
         }
       } else {
         toast.success('Enviado via WhatsApp (Cloud)!')
