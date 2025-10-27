@@ -353,7 +353,7 @@ export async function POST(req: Request) {
       const host = req.headers.get('host') || '127.0.0.1:3000'
       const scheme = host.includes('localhost') || host.startsWith('127.0.0.1') ? 'http' : 'https'
       const baseHref = `${scheme}://${host}`
-      const secret = (cfg?.whatsapp?.osShareSecret) || process.env.OS_SHARE_SECRET || process.env.ADMIN_CONFIG_PASSWORD
+      const secret = (cfg?.evolution?.osShareSecret) || (cfg?.whatsapp?.osShareSecret) || process.env.OS_SHARE_SECRET || process.env.ADMIN_CONFIG_PASSWORD
       if (!secret) {
         return NextResponse.json({ error: 'Segredo de link ausente. Defina em Configurações > WhatsApp ou via variável de ambiente.' }, { status: 500 })
       }
@@ -422,7 +422,7 @@ export async function POST(req: Request) {
           if (!os) return NextResponse.json({ error: 'Ordem não encontrada' }, { status: 404 })
         }
 
-        const secret = (cfg?.whatsapp?.osShareSecret) || process.env.OS_SHARE_SECRET || process.env.ADMIN_CONFIG_PASSWORD
+        const secret = (cfg?.evolution?.osShareSecret) || (cfg?.whatsapp?.osShareSecret) || process.env.OS_SHARE_SECRET || process.env.ADMIN_CONFIG_PASSWORD
         if (!secret) {
           return NextResponse.json({ error: 'Segredo de link ausente. Defina em Configurações > WhatsApp ou via variável de ambiente.' }, { status: 500 })
         }

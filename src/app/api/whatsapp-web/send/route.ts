@@ -239,7 +239,7 @@ export async function POST(req: Request) {
       let url = ''
       let hasUrl = false
       if (wantsUrl) {
-        const secret = (cfg?.whatsapp?.osShareSecret) || process.env.OS_SHARE_SECRET || process.env.ADMIN_CONFIG_PASSWORD
+        const secret = (cfg?.evolution?.osShareSecret) || (cfg?.whatsapp?.osShareSecret) || process.env.OS_SHARE_SECRET || process.env.ADMIN_CONFIG_PASSWORD
         if (secret) {
           const token = crypto.createHmac('sha256', secret).update(osId || (os.id || '')).digest('hex')
           url = `${baseHref}/os/${osId || os.id}?t=${token}`

@@ -25,7 +25,8 @@ export default async function OSView({ params, searchParams }: { params: { id: s
 
   const cfgSnap = await adminDb.collection('config').doc('geral').get()
   const cfg = (cfgSnap.data() || {}) as any
-  const secret = (cfg?.whatsapp?.osShareSecret) || process.env.OS_SHARE_SECRET || process.env.ADMIN_CONFIG_PASSWORD || null
+  // Aceitar segredo definido em Evolution ou WhatsApp, além de variáveis de ambiente
+  const secret = (cfg?.evolution?.osShareSecret) || (cfg?.whatsapp?.osShareSecret) || process.env.OS_SHARE_SECRET || process.env.ADMIN_CONFIG_PASSWORD || null
   if (!secret) {
     return (
       <div className="min-h-screen bg-white text-slate-800 flex items-center justify-center p-6">
