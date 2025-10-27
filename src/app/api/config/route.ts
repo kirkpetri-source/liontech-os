@@ -46,6 +46,16 @@ type Config = {
     osShareSecret?: string
     messageTemplate?: string
   }
+  evolution?: {
+    baseUrl?: string
+    instanceName?: string
+    token?: string
+    webhook?: string
+    webhookSecret?: string
+    osShareSecret?: string
+    messageTemplate?: string
+    enabled?: boolean
+  }
   updatedAt?: string
 }
 
