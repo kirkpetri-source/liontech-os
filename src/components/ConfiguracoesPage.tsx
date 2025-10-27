@@ -188,6 +188,24 @@ export default function ConfiguracoesPage() {
   const [showWaToken, setShowWaToken] = useState(false)
   const [showWaSecret, setShowWaSecret] = useState(false)
   const [showWaPass, setShowWaPass] = useState(false)
+
+  // Integração EvolutionAPI
+  const [evolution, setEvolution] = useState({
+    baseUrl: '',
+    instanceName: '',
+    token: '',
+    webhook: '',
+    webhookSecret: '',
+    osShareSecret: '',
+    messageTemplate: '',
+    enabled: false,
+  })
+  const [showEvoToken, setShowEvoToken] = useState(false)
+  const [showEvoWebhookSecret, setShowEvoWebhookSecret] = useState(false)
+  const [showEvoShareSecret, setShowEvoShareSecret] = useState(false)
+  const [evoLoading, setEvoLoading] = useState(false)
+  const [evoStatus, setEvoStatus] = useState<'open' | 'connecting' | 'qr' | 'closed' | 'error' | 'unknown'>('unknown')
+  const [evoQr, setEvoQr] = useState<string | null>(null)
   const [waWebState, setWaWebState] = useState<'disconnected' | 'qr' | 'connected' | 'loading' | 'disabled'>('disconnected')
   const [waWebQr, setWaWebQr] = useState<string | null>(null)
   const [waWebLoading, setWaWebLoading] = useState(false)
@@ -309,6 +327,16 @@ export default function ConfiguracoesPage() {
             mode: cfg.whatsapp?.mode || 'cloud',
             messageTemplate: cfg.whatsapp?.messageTemplate || '',
           })
+          if (cfg.evolution) setEvolution({
+            baseUrl: cfg.evolution?.baseUrl || '',
+            instanceName: cfg.evolution?.instanceName || '',
+            token: cfg.evolution?.token || '',
+            webhook: cfg.evolution?.webhook || '',
+            webhookSecret: cfg.evolution?.webhookSecret || '',
+            osShareSecret: cfg.evolution?.osShareSecret || '',
+            messageTemplate: cfg.evolution?.messageTemplate || '',
+            enabled: !!cfg.evolution?.enabled,
+          })
         } else {
           if (res.status === 401) toast.error('Não autorizado. Faça login para ver configurações.')
           if (res.status === 403) toast.error('Permissão insuficiente para ver configurações.')
@@ -347,6 +375,7 @@ export default function ConfiguracoesPage() {
   // Tags disponíveis para o template de mensagem da O.S.
   const MESSAGE_TAGS = [
     { value: 'clienteNome', label: 'Cliente - Nome' },
+    { value: 'clienteWhatsapp', label: 'Cliente - WhatsApp' },
     { value: 'numeroOS', label: 'Número da O.S.' },
     { value: 'status', label: 'Status' },
     { value: 'equipamentoModelo', label: 'Equipamento - Modelo' },
@@ -357,10 +386,38 @@ export default function ConfiguracoesPage() {
     { value: 'valor', label: 'Valor' },
     { value: 'valorEntrada', label: 'Valor de Entrada' },
     { value: 'valorPago', label: 'Valor Pago' },
+    { value: 'saldo', label: 'Saldo' },
     { value: 'formaPagamento', label: 'Forma de Pagamento' },
     { value: 'rastreamentoExterno', label: 'Rastreamento Externo' },
     { value: 'osLink', label: 'Link da O.S.' },
   ]
+
+  // Ref e helpers para inserir tags no template EvolutionAPI
+  const evoTemplateTextareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const [selectedEvoTag, setSelectedEvoTag] = useState<string>('')
+
+  const insertEvoTagAtCursor = (tag: string) => {
+    const placeholder = `{{${tag}}}`
+    const el = evoTemplateTextareaRef.current
+    if (el) {
+      const start = el.selectionStart ?? el.value.length
+      const end = el.selectionEnd ?? el.value.length
+      const current = evolution.messageTemplate || ''
+      const next = current.slice(0, start) + placeholder + current.slice(end)
+      setEvolution(prev => ({ ...prev, messageTemplate: next }))
+      setSelectedEvoTag('')
+      setTimeout(() => {
+        try {
+          el.focus()
+          const caret = start + placeholder.length
+          el.setSelectionRange(caret, caret)
+        } catch {}
+      }, 0)
+    } else {
+      setEvolution(prev => ({ ...prev, messageTemplate: (prev.messageTemplate || '') + placeholder }))
+      setSelectedEvoTag('')
+    }
+  }
 
   // Insere a tag na posição do cursor do textarea
   const insertTagAtCursor = (tag: string) => {
@@ -683,6 +740,69 @@ export default function ConfiguracoesPage() {
       toast.error('Erro ao salvar integração WhatsApp')
     }
   }
+
+  // EvolutionAPI: salvar e diagnosticar
+  const saveEvolution = async () => {
+    try {
+      const res = await fetch('/api/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ evolution })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const msg = (data as any)?.error || 'Falha ao salvar integração EvolutionAPI'
+        toast.error(msg)
+        return
+      }
+      toast.success('Integração EvolutionAPI salva com sucesso!')
+    } catch (e) {
+      console.error('Erro ao salvar EvolutionAPI:', e)
+      toast.error('Erro ao salvar integração EvolutionAPI')
+    }
+  }
+
+  const refreshEvolution = async () => {
+    setEvoLoading(true)
+    try {
+      const res = await fetch('/api/evolution/instance', { method: 'GET' })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        const status = (data as any)?.status as any
+        setEvoStatus(status || 'unknown')
+        setEvoQr(((data as any)?.qrCode as string) || null)
+        toast.success('Status da instância EvolutionAPI atualizado')
+      } else {
+        const err = (data as any)?.error || 'Falha ao consultar instância EvolutionAPI'
+        toast.error(err)
+        setEvoStatus('error')
+        setEvoQr(null)
+      }
+    } catch (e) {
+      console.error('Erro ao consultar EvolutionAPI:', e)
+      toast.error('Erro ao consultar EvolutionAPI')
+      setEvoStatus('error')
+      setEvoQr(null)
+    } finally {
+      setEvoLoading(false)
+    }
+  }
+
+  const genSecretHex = (len = 32) => {
+    try {
+      const bytes = new Uint8Array(len)
+      if (typeof window !== 'undefined' && window.crypto?.getRandomValues) {
+        window.crypto.getRandomValues(bytes)
+      } else {
+        // Fallback pseudo-random (dev only)
+        for (let i = 0; i < len; i++) bytes[i] = Math.floor(Math.random() * 256)
+      }
+      return Array.from(bytes).map((b) => ('0' + b.toString(16)).slice(-2)).join('')
+    } catch {
+      return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)
+    }
+  }
+
 
   const [waTesting, setWaTesting] = useState(false)
   const testWhatsapp = async () => {
@@ -1557,6 +1677,195 @@ export default function ConfiguracoesPage() {
               </CardContent>
             </Card>
 
+            {/* Integração WhatsApp EvolutionAPI */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Globe className="w-5 h-5" />
+                  <span>WhatsApp EvolutionAPI</span>
+                </CardTitle>
+                <CardDescription>Configurar instância da EvolutionAPI (URL base, instância, token, webhooks e template)</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Habilitar integração</Label>
+                    <p className="text-sm text-slate-500">Ativa a integração com a EvolutionAPI</p>
+                  </div>
+                  <Switch checked={evolution.enabled} onCheckedChange={(v) => setEvolution({ ...evolution, enabled: v })} />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="evoBaseUrl">Base URL</Label>
+                  <Input
+                    id="evoBaseUrl"
+                    value={evolution.baseUrl}
+                    onChange={(e) => setEvolution({ ...evolution, baseUrl: e.target.value })}
+                    placeholder="Ex.: http://localhost:8080/api"
+                  />
+                  <p className="text-xs text-slate-500">Inclua protocolo e caminho da API se necessário.</p>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="evoInstanceName">Nome da Instância</Label>
+                  <Input
+                    id="evoInstanceName"
+                    value={evolution.instanceName}
+                    onChange={(e) => setEvolution({ ...evolution, instanceName: e.target.value })}
+                    placeholder="Ex.: minha-instancia"
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="evoToken">Token</Label>
+                  <div className="relative">
+                    <Input
+                      id="evoToken"
+                      type={showEvoToken ? 'text' : 'password'}
+                      value={evolution.token}
+                      onChange={(e) => setEvolution({ ...evolution, token: e.target.value })}
+                      placeholder="Ex.: SEU_TOKEN_AQUI"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      onClick={() => setShowEvoToken(!showEvoToken)}
+                    >
+                      {showEvoToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="evoWebhook">Webhook URL</Label>
+                  <Input
+                    id="evoWebhook"
+                    value={evolution.webhook}
+                    onChange={(e) => setEvolution({ ...evolution, webhook: e.target.value })}
+                    placeholder="Ex.: https://seusistema.com/api/evolution/webhook"
+                  />
+                  <p className="text-xs text-slate-500">URL que receberá eventos da EvolutionAPI.</p>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="evoWebhookSecret">Webhook Secret</Label>
+                  <div className="relative flex gap-2">
+                    <div className="relative flex-1">
+                      <Input
+                        id="evoWebhookSecret"
+                        type={showEvoWebhookSecret ? 'text' : 'password'}
+                        value={evolution.webhookSecret}
+                        onChange={(e) => setEvolution({ ...evolution, webhookSecret: e.target.value })}
+                        placeholder="Segredo para validar webhooks"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={() => setShowEvoWebhookSecret(!showEvoWebhookSecret)}
+                      >
+                        {showEvoWebhookSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                    <Button type="button" variant="outline" onClick={() => setEvolution({ ...evolution, webhookSecret: genSecretHex(32) })}>
+                      Gerar
+                    </Button>
+                  </div>
+                  <p className="text-xs text-slate-500">Usado para validar assinatura do webhook (x-signature).</p>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="evoShareSecret">Segredo de Compartilhamento da O.S.</Label>
+                  <div className="relative flex gap-2">
+                    <div className="relative flex-1">
+                      <Input
+                        id="evoShareSecret"
+                        type={showEvoShareSecret ? 'text' : 'password'}
+                        value={evolution.osShareSecret}
+                        onChange={(e) => setEvolution({ ...evolution, osShareSecret: e.target.value })}
+                        placeholder="Segredo para gerar links seguros da O.S."
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={() => setShowEvoShareSecret(!showEvoShareSecret)}
+                      >
+                        {showEvoShareSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                    <Button type="button" variant="outline" onClick={() => setEvolution({ ...evolution, osShareSecret: genSecretHex(32) })}>
+                      Gerar
+                    </Button>
+                  </div>
+                  <p className="text-xs text-slate-500">Permite criar URL de compartilhamento seguro para clientes.</p>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="evoMsgTpl">Template de mensagem</Label>
+                  <Textarea
+                    id="evoMsgTpl"
+                    ref={evoTemplateTextareaRef}
+                    value={evolution.messageTemplate}
+                    onChange={(e) => setEvolution({ ...evolution, messageTemplate: e.target.value })}
+                    placeholder={"Olá {{clienteNome}}, sua O.S. {{numeroOS}} está em {{status}}. Acompanhe: {{osLink}}"}
+                  />
+                  <div className="flex items-center gap-2">
+                    <Select value={selectedEvoTag} onValueChange={(value) => setSelectedEvoTag(value)}>
+                      <SelectTrigger className="w-64">
+                        <SelectValue placeholder="Selecione uma tag" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MESSAGE_TAGS.map(t => (
+                          <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button type="button" variant="outline" onClick={() => selectedEvoTag && insertEvoTagAtCursor(selectedEvoTag)} disabled={!selectedEvoTag}>
+                      Inserir tag
+                    </Button>
+                  </div>
+                  <p className="text-xs text-slate-500">Use tags da O.S. entre {'{{...}}'}. Ex.: {'{{clienteNome}}'}, {'{{numeroOS}}'}, {'{{status}}'}, {'{{osLink}}'}.</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <Button className="w-full" onClick={saveEvolution}>
+                    <Save className="w-4 h-4 mr-2" />
+                    Salvar Integração EvolutionAPI
+                  </Button>
+                  <Button className="w-full" variant="outline" onClick={refreshEvolution} disabled={evoLoading}>
+                    {evoLoading ? 'Verificando...' : 'Verificar Instância'}
+                  </Button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Label>Status:</Label>
+                  <Badge className={
+                    evoStatus === 'open' ? 'bg-green-600' :
+                    evoStatus === 'qr' ? 'bg-yellow-600' :
+                    evoStatus === 'connecting' ? 'bg-blue-600' :
+                    evoStatus === 'error' ? 'bg-red-600' : 'bg-slate-600'
+                  }>
+                    {evoStatus === 'open' ? 'Conectada' :
+                     evoStatus === 'qr' ? 'Aguardando leitura do QR' :
+                     evoStatus === 'connecting' ? 'Conectando...' :
+                     evoStatus === 'closed' ? 'Desconectada' :
+                     evoStatus === 'error' ? 'Erro' : 'Desconhecido'}
+                  </Badge>
+                </div>
+
+                {evoStatus === 'qr' && evoQr && (
+                  <div className="flex items-center justify-center">
+                    <img src={evoQr} alt="QR EvolutionAPI" className="w-64 h-64 border rounded-md" />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Configurações do Sistema */}
             <Card>
               <CardHeader>
@@ -1840,6 +2149,7 @@ export default function ConfiguracoesPage() {
             </Card>
 
             {/* Integração WhatsApp */}
+            {false && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
@@ -2033,7 +2343,7 @@ export default function ConfiguracoesPage() {
                         </Button>
                       </div>
                       <p className="text-xs text-slate-500">
-                         Use tags da O.S. com {'{{chaves}}'}. Ex.: {'{{clienteNome}}'}, {'{{numeroOS}}'}, {'{{status}}'}, {'{{osLink}}'}.
+                         Use tags da O.S. entre {'{{...}}'}. Ex.: {'{{clienteNome}}'}, {'{{numeroOS}}'}, {'{{status}}'}, {'{{osLink}}'}.
                        </p>
                     </div>
 
@@ -2076,7 +2386,7 @@ export default function ConfiguracoesPage() {
                         </div>
                         {waWebQr && waWebState !== 'connected' && (
                           <div className="flex items-center justify-center">
-                            <img src={waWebQr} alt="QR WhatsApp Web" className="w-64 h-64 border rounded-md" />
+                            <img src={waWebQr ?? undefined} alt="QR WhatsApp Web" className="w-64 h-64 border rounded-md" />
                           </div>
                         )}
                         {waWebState === 'connected' && (
@@ -2088,6 +2398,7 @@ export default function ConfiguracoesPage() {
                 )}
               </CardContent>
             </Card>
+            )}
 
             {/* Configurações de Segurança */}
             <Card>
