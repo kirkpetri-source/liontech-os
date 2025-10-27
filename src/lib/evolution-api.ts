@@ -265,7 +265,8 @@ export class EvolutionAPI {
 • Saldo: {{saldo}}
 
 {{#osLink}}
-🔗 Acompanhe sua O.S.: {{osLink}}
+🔗 Acompanhe sua O.S.:
+{{osLink}}
 {{/osLink}}
 
 ---
@@ -290,6 +291,9 @@ Obrigado pela preferência! 🙏
       valorEntrada: this.formatCurrency(orderData.valorEntrada),
       valorPago: this.formatCurrency(orderData.valorPago),
       saldo: this.formatCurrency((orderData.valor || 0) - (orderData.valorPago || 0) - (orderData.valorEntrada || 0)),
+      descricaoServico: orderData.descricaoServico || '',
+      formaPagamento: orderData.formaPagamento || '',
+      rastreamentoExterno: orderData.rastreamentoExterno || '',
       osLink: orderData.osLink || ''
     }
 

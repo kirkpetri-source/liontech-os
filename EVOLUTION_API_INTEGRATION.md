@@ -148,6 +148,7 @@ curl -X POST http://localhost:3000/api/evolution/send \
 
 ```
 {{clienteNome}}         - Nome do cliente
+{{clienteWhatsapp}}     - WhatsApp do cliente
 {{numeroOS}}            - Número da O.S.
 {{status}}              - Status atual
 {{equipamentoModelo}}   - Modelo do equipamento
@@ -155,10 +156,12 @@ curl -X POST http://localhost:3000/api/evolution/send \
 {{previsaoEntrega}}     - Data de previsão
 {{categoria}}           - Categoria do serviço
 {{descricaoServico}}    - Descrição do serviço
+{{formaPagamento}}      - Forma de pagamento
 {{valor}}               - Valor total
 {{valorEntrada}}        - Valor de entrada
 {{valorPago}}           - Valor pago
 {{saldo}}               - Saldo restante
+{{rastreamentoExterno}} - Código/link de rastreamento externo
 {{osLink}}              - Link seguro da O.S.
 ```
 
@@ -185,12 +188,18 @@ curl -X POST http://localhost:3000/api/evolution/send \
 • Saldo: {{saldo}}
 
 {{#osLink}}
-🔗 Acompanhe sua O.S.: {{osLink}}
+🔗 Acompanhe sua O.S.:
+{{osLink}}
 {{/osLink}}
 
 ---
 Obrigado pela preferência! 🙏
 ```
+
+Observações sobre links:
+- Para o link aparecer clicável no WhatsApp, prefira um domínio público com `https`.
+- Em ambientes com túneis/reverse proxies (ngrok, Cloudflare Tunnel), os cabeçalhos `x-forwarded-host` e `x-forwarded-proto` são considerados para montar o link corretamente.
+- Garanta que o segredo `osShareSecret` esteja configurado em Configurações > WhatsApp EvolutionAPI para geração do token de compartilhamento.
 
 ### 2. Processamento de Respostas
 

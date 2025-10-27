@@ -219,17 +219,19 @@ export default function Home() {
                 <span className="hidden sm:inline">Buscar</span>
               </Button>
               {/* Indicador pequeno de status do WhatsApp Web */}
-              <div
-                className="relative w-8 h-8 flex items-center justify-center rounded-md border border-slate-200"
-                title={`WhatsApp Web: ${waWebHeaderState === 'connected' ? 'Conectado' : waWebHeaderState === 'qr' ? 'QR aguardando' : waWebHeaderState === 'loading' ? 'Carregando' : waWebHeaderState === 'disabled' ? 'Desativado' : 'Desconectado'}`}
-              >
-                <Smartphone
-                  className={`w-4 h-4 ${waWebHeaderState === 'connected' ? 'text-green-600' : waWebHeaderState === 'qr' ? 'text-yellow-600' : waWebHeaderState === 'loading' ? 'text-blue-600' : waWebHeaderState === 'disabled' ? 'text-slate-500' : 'text-red-600'}`}
-                />
-                <span
-                    className={`absolute -right-1 -bottom-1 w-2 h-2 rounded-full ${waWebHeaderState === 'connected' ? 'bg-green-500' : waWebHeaderState === 'qr' ? 'bg-yellow-500' : waWebHeaderState === 'loading' ? 'bg-blue-500 animate-pulse' : waWebHeaderState === 'disabled' ? 'bg-slate-400' : 'bg-red-500'}`}
+              {false && (
+                <div
+                  className="relative w-8 h-8 flex items-center justify-center rounded-md border border-slate-200"
+                  title={`WhatsApp Web: ${waWebHeaderState === 'connected' ? 'Conectado' : waWebHeaderState === 'qr' ? 'QR aguardando' : waWebHeaderState === 'loading' ? 'Carregando' : waWebHeaderState === 'disabled' ? 'Desativado' : 'Desconectado'}`}
+                >
+                  <Smartphone
+                    className={`w-4 h-4 ${waWebHeaderState === 'connected' ? 'text-green-600' : waWebHeaderState === 'qr' ? 'text-yellow-600' : waWebHeaderState === 'loading' ? 'text-blue-600' : waWebHeaderState === 'disabled' ? 'text-slate-500' : 'text-red-600'}`}
                   />
-              </div>
+                  <span
+                      className={`absolute -right-1 -bottom-1 w-2 h-2 rounded-full ${waWebHeaderState === 'connected' ? 'bg-green-500' : waWebHeaderState === 'qr' ? 'bg-yellow-500' : waWebHeaderState === 'loading' ? 'bg-blue-500 animate-pulse' : waWebHeaderState === 'disabled' ? 'bg-slate-400' : 'bg-red-500'}`}
+                    />
+                </div>
+              )}
               <Button size="sm" onClick={() => { setActiveTab('ordens'); setOpenNewOSSignal((s) => s + 1) }}>
                 <Plus className="w-4 h-4 mr-2" />
                 Nova O.S.

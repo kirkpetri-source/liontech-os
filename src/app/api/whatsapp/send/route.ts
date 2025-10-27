@@ -5,6 +5,7 @@ import { adminDb } from '@/lib/firebase-admin'
 import puppeteer from 'puppeteer'
 import * as https from 'node:https'
 import crypto from 'crypto'
+import { createEvolutionAPI } from '@/lib/evolution-api'
 
 function toE164(brWhats: string) {
   const d = (brWhats || '').replace(/\D/g, '')
@@ -219,17 +220,7 @@ export async function POST(req: Request) {
     const empresa = cfg.empresa || {}
     const imp = cfg.impressao || {}
 
-    // Prioriza credenciais do Firestore; cai para variáveis de ambiente se ausentes
-    const token = cfg?.whatsapp?.token || process.env.WHATSAPP_TOKEN
-    const phoneId = cfg?.whatsapp?.phoneId || process.env.WHATSAPP_PHONE_ID
-    if (!token || !phoneId) {
-      return NextResponse.json({ error: 'Config WhatsApp ausente (token/phone id)' }, { status: 500 })
-    }
-    const phoneIdStr = String(phoneId)
-    const looksLikeBRPhone = /\(\d{2}\)\s?\d{4,5}-?\d{4}/.test(phoneIdStr) || /^55\d{10,11}$/.test(phoneIdStr)
-    if (!/^\d+$/.test(phoneIdStr) || looksLikeBRPhone) {
-      return NextResponse.json({ error: 'Phone ID inválido. Informe o “Phone number ID” do WhatsApp Cloud (não o número do telefone).' }, { status: 400 })
-    }
+    // (Credenciais Cloud serão validadas mais adiante, somente se Evolution não for usado)
 
     // Determina destinatário (to)
     let to: string | null = null
@@ -245,6 +236,63 @@ export async function POST(req: Request) {
       to = toE164(os.clienteWhatsapp)
     }
     if (!to) return NextResponse.json({ error: 'WhatsApp do cliente inválido' }, { status: 422 })
+
+    // Preferir EvolutionAPI para envio de O.S. quando habilitada
+    // Condições: configuração Evolution ativa e válida; requisição típica de OS (sem arquivo explícito ou modo 'os')
+    const evoCfg = cfg?.evolution || {}
+    const evolutionEnabled = !!evoCfg?.baseUrl && !!evoCfg?.instanceName && !!evoCfg?.token && (evoCfg?.enabled !== false)
+    const requestedOsFlow = !fileBlob && (mode === null || mode === undefined || mode === 'os' || mode === 'document')
+    if (evolutionEnabled && requestedOsFlow) {
+      try {
+        const evolutionAPI = createEvolutionAPI({
+          baseUrl: String(evoCfg.baseUrl),
+          instanceName: String(evoCfg.instanceName),
+          token: String(evoCfg.token),
+          webhook: evoCfg.webhook || undefined
+        })
+
+        // Verificar status da instância
+        const instanceStatus = await evolutionAPI.getInstanceStatus()
+        if (instanceStatus.status === 'open') {
+          // Gerar link seguro de visualização da O.S., se houver segredo
+          const xfHost = req.headers.get('x-forwarded-host')
+          const xfProto = req.headers.get('x-forwarded-proto')
+          const host = xfHost || req.headers.get('host') || '127.0.0.1:3000'
+          const scheme = xfProto || (host.includes('localhost') || host.startsWith('127.0.0.1') ? 'http' : 'https')
+          const baseHref = `${scheme}://${host}`
+
+          let osLink = ''
+          const secret = evoCfg?.osShareSecret || cfg?.whatsapp?.osShareSecret || process.env.OS_SHARE_SECRET || process.env.ADMIN_CONFIG_PASSWORD
+          if (secret && (osId || os?.id)) {
+            const shareToken = crypto.createHmac('sha256', secret).update(osId || (os?.id || '')).digest('hex')
+            osLink = `${baseHref}/os/${osId || os?.id}?t=${shareToken}`
+          }
+
+          // Usar template preferencial
+          const template = evoCfg?.messageTemplate || cfg?.whatsapp?.messageTemplate
+
+          const result = await evolutionAPI.sendOrderService(to, { ...(os || {}), osLink }, template)
+          return NextResponse.json({ ok: true, transport: 'evolution', to, messageId: result?.key?.id || null, result }, { status: 200 })
+        }
+        // Se instância não estiver conectada, cai para Cloud
+      } catch (e) {
+        // Qualquer erro ao tentar Evolution fará fallback para Cloud
+        console.warn('Falha ao enviar via EvolutionAPI a partir de /api/whatsapp/send. Usando Cloud API.', e)
+      }
+    }
+
+    // A partir daqui, seguimos com Cloud API caso Evolution não esteja disponível ou conectado
+    // Prioriza credenciais do Firestore; cai para variáveis de ambiente se ausentes
+    const token = cfg?.whatsapp?.token || process.env.WHATSAPP_TOKEN
+    const phoneId = cfg?.whatsapp?.phoneId || process.env.WHATSAPP_PHONE_ID
+    if (!token || !phoneId) {
+      return NextResponse.json({ error: 'Config WhatsApp ausente (token/phone id)' }, { status: 500 })
+    }
+    const phoneIdStr = String(phoneId)
+    const looksLikeBRPhone = /\(\d{2}\)\s?\d{4,5}-?\d{4}/.test(phoneIdStr) || /^55\d{10,11}$/.test(phoneIdStr)
+    if (!/^\d+$/.test(phoneIdStr) || looksLikeBRPhone) {
+      return NextResponse.json({ error: 'Phone ID inválido. Informe o “Phone number ID” do WhatsApp Cloud (não o número do telefone).' }, { status: 400 })
+    }
 
     // Opcional: envia mensagem de template para iniciar conversa fora da janela de 24h
     const templateName = cfg?.whatsapp?.templateName || process.env.WHATSAPP_TEMPLATE_NAME

@@ -722,95 +722,33 @@ const handleSubmit = async (e: React.FormEvent) => {
     ].filter(Boolean).join('\n')
   }
 
-  // Verifica se WhatsApp Web está suportado (evita fallback em Vercel/serverless)
-  const isWaWebSupported = async (): Promise<boolean> => {
-    try {
-      const res = await fetch('/api/whatsapp-web/qr', { method: 'GET' })
-      if (res.status === 503) return false
-      const data = await res.json().catch(() => ({}))
-      return res.ok && data?.state !== 'disabled'
-    } catch {
-      return false
-    }
-  }
-
-  const explainCloudError = (code?: number): string | null => {
-    switch(code) {
-      case 190: return 'Access token inválido ou expirado. Atualize nas Configurações > WhatsApp.'
-      case 10: return 'Permissão insuficiente no token. Conceda escopos do WhatsApp e gere novo token.'
-      case 131030: return 'Destinatário não permitido. Adicione como Test Recipient ou publique o app.'
-      case 133010: return 'Número não onboarded na Cloud API. Complete o onboarding no WhatsApp Manager.'
-      default: return null
-    }
-  }
 
   const handleSendWhatsApp = async (os: OrdemServico) => {
     try {
-      const loadingId = (toast as any).loading ? (toast as any).loading('Enviando link da O.S. via WhatsApp (Cloud)...') : null
+      const loadingId = (toast as any).loading ? (toast as any).loading('Enviando O.S. via EvolutionAPI...') : null
 
-      const endpoint = '/api/whatsapp/send'
-      const res = await fetch(endpoint, {
+      const res = await fetch('/api/evolution/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ osId: os.id, mode: 'link' })
+        body: JSON.stringify({ osId: os.id, mode: 'os' })
       })
 
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        let msg = 'Falha ao enviar pelo WhatsApp (Cloud)'
-        let code: number | null = null
-        try {
-          const err = await res.json()
-          const parts = [err?.error, err?.message, err?.code ? `code ${err.code}` : null].filter(Boolean)
-          if (parts.length) msg = parts.join(' - ')
-          if (typeof err?.code === 'number') code = err.code
-        } catch {}
-
-        // Fallback automático para WhatsApp Web quando Cloud API está indisponível ou não onboarded
-        const shouldFallback = res.status === 401 || res.status === 403 || code === 133010 || code === 10 || code === 190
-        if (shouldFallback) {
-          if (loadingId) (toast as any).dismiss?.(loadingId)
-
-          const supported = await isWaWebSupported()
-          if (!supported) {
-            const hint = explainCloudError(code ?? undefined)
-            toast.error(hint ? `${hint} Além disso, WhatsApp Web não é suportado neste ambiente.` : 'Cloud falhou e WhatsApp Web não é suportado neste ambiente. Use a Cloud API (Configurações > WhatsApp).')
-            return
-          }
-
-          const loadingWebId = (toast as any).loading ? (toast as any).loading('Cloud falhou. Tentando via WhatsApp Web...') : null
-          try {
-            const webRes = await fetch('/api/whatsapp-web/send', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ osId: os.id, mode: 'link' })
-            })
-            if (webRes.ok) {
-              toast.success('Enviado via WhatsApp Web!')
-            } else {
-              let webMsg = 'Falha ao enviar pelo WhatsApp Web'
-              try {
-                const werr = await webRes.json()
-                const parts = [werr?.error, werr?.state].filter(Boolean)
-                if (parts.length) webMsg = parts.join(' - ')
-              } catch {}
-              toast.error(webMsg)
-            }
-          } catch (e) {
-            toast.error('Erro ao enviar pelo WhatsApp Web')
-          } finally {
-            if (loadingWebId) (toast as any).dismiss?.(loadingWebId)
-          }
+        const status = (data as any)?.status || null
+        const errMsg = (data as any)?.error || 'Falha ao enviar pela EvolutionAPI'
+        if (status === 'qr' || status === 'connecting' || status === 'closed') {
+          toast.error(`Instância não conectada (${status}). Abra Configurações > WhatsApp Evolution e conecte pelo QR.`)
         } else {
-          const hint = explainCloudError(code ?? undefined)
-          toast.error(hint || msg)
+          toast.error(errMsg)
         }
       } else {
-        toast.success('Enviado via WhatsApp (Cloud)!')
+        toast.success('Enviado via EvolutionAPI!')
       }
 
       if ((toast as any).dismiss && loadingId) (toast as any).dismiss(loadingId)
     } catch (e) {
-      toast.error('Erro ao enviar pelo WhatsApp (Cloud)')
+      toast.error('Erro ao enviar pela EvolutionAPI')
     }
   }
 

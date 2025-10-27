@@ -111,9 +111,11 @@ export async function POST(req: Request) {
           }
         }
 
-        // Gerar link seguro se configurado
-        const host = req.headers.get('host') || '127.0.0.1:3000'
-        const scheme = host.includes('localhost') || host.startsWith('127.0.0.1') ? 'http' : 'https'
+        // Gerar link seguro se configurado (considera proxies/túneis)
+        const xfHost = req.headers.get('x-forwarded-host')
+        const xfProto = req.headers.get('x-forwarded-proto')
+        const host = xfHost || req.headers.get('host') || '127.0.0.1:3000'
+        const scheme = xfProto || (host.includes('localhost') || host.startsWith('127.0.0.1') ? 'http' : 'https')
         const baseHref = `${scheme}://${host}`
         
         let osLink = ''
