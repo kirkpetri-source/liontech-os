@@ -37,6 +37,10 @@ type Config = {
     sessao?: string
     configKeyHash?: string
   }
+  notifications?: {
+    enabled?: boolean
+    numbers?: string[]
+  }
   whatsapp?: {
     phoneId?: string
     token?: string
@@ -87,6 +91,10 @@ const defaults: Config = {
     logAtividades: true,
     sessao: '8h',
   },
+  notifications: {
+    enabled: true,
+    numbers: ['5564999555364']
+  }
 }
 
 export async function GET() {

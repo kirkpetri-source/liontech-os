@@ -36,7 +36,8 @@ import {
   Database,
   Bell,
   Eye,
-  EyeOff
+  EyeOff,
+  RefreshCw
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -212,6 +213,15 @@ export default function ConfiguracoesPage() {
   const [selectedTag, setSelectedTag] = useState('')
   const templateTextareaRef = useRef<HTMLTextAreaElement | null>(null)
 
+  // Notificações automáticas de novas O.S.
+  const [notifications, setNotifications] = useState<{ enabled: boolean; numbers: string[] }>({
+    enabled: true,
+    numbers: []
+  })
+  const [savingNotifications, setSavingNotifications] = useState(false)
+  const [notifLogs, setNotifLogs] = useState<any[]>([])
+  const [loadingNotifLogs, setLoadingNotifLogs] = useState(false)
+
   // Dialog do botão Sistema removido
 
   // Carregar dados iniciais (usuários, categorias, status, config)
@@ -337,6 +347,10 @@ export default function ConfiguracoesPage() {
             messageTemplate: cfg.evolution?.messageTemplate || '',
             enabled: !!cfg.evolution?.enabled,
           })
+          if (cfg.notifications) setNotifications({
+            enabled: cfg.notifications?.enabled ?? true,
+            numbers: Array.isArray(cfg.notifications?.numbers) ? cfg.notifications.numbers : []
+          })
         } else {
           if (res.status === 401) toast.error('Não autorizado. Faça login para ver configurações.')
           if (res.status === 403) toast.error('Permissão insuficiente para ver configurações.')
@@ -350,6 +364,18 @@ export default function ConfiguracoesPage() {
     fetchCategorias()
     fetchStatus()
     fetchConfig()
+    ;(async () => {
+      try {
+        setLoadingNotifLogs(true)
+        const res = await fetch('/api/notifications/logs')
+        const data = await res.json().catch(() => ({}))
+        if (res.ok && (data as any)?.items) setNotifLogs((data as any).items)
+      } catch (e) {
+        console.error('Erro ao carregar logs de notificações:', e)
+      } finally {
+        setLoadingNotifLogs(false)
+      }
+    })()
   }, [])
 
   const getNivelColor = (nivel: string) => {
@@ -693,6 +719,45 @@ export default function ConfiguracoesPage() {
         body: JSON.stringify({ seguranca }),
       })
     } catch (e) { console.error('Erro ao salvar segurança:', e) }
+  }
+
+  // Notificações: salvar
+  const saveNotifications = async () => {
+    try {
+      setSavingNotifications(true)
+      const res = await fetch('/api/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notifications })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const msg = (data as any)?.error || 'Falha ao salvar Notificações'
+        toast.error(msg)
+        return
+      }
+      toast.success('Notificações salvas com sucesso!')
+    } catch (e) {
+      console.error('Erro ao salvar Notificações:', e)
+      toast.error('Erro ao salvar Notificações')
+    } finally {
+      setSavingNotifications(false)
+    }
+  }
+
+  const loadNotifLogs = async () => {
+    try {
+      setLoadingNotifLogs(true)
+      const res = await fetch('/api/notifications/logs')
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && (data as any)?.items) setNotifLogs((data as any).items)
+      else toast.error('Não foi possível carregar logs')
+    } catch (e) {
+      console.error('Erro ao carregar logs de notificações:', e)
+      toast.error('Erro ao carregar logs')
+    } finally {
+      setLoadingNotifLogs(false)
+    }
   }
 
   // Integração WhatsApp: desbloqueio e salvamento protegido
@@ -1362,6 +1427,101 @@ export default function ConfiguracoesPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Notificações Automáticas */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Bell className="w-5 h-5" />
+                <span>Notificações Automáticas</span>
+              </CardTitle>
+              <CardDescription>Enviar WhatsApp automaticamente ao criar novas O.S.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Ativar notificações</Label>
+                  <p className="text-sm text-slate-500">Quando ativado, envia mensagens ao criar O.S.</p>
+                </div>
+                <Switch checked={notifications.enabled} onCheckedChange={(v) => setNotifications({ ...notifications, enabled: v })} />
+              </div>
+
+              <div className="space-y-3">
+                <Label>Números de destino (E.164)</Label>
+                {(notifications.numbers || []).map((num, idx) => (
+                  <div key={idx} className="flex gap-2 items-end">
+                    <div className="grid gap-1 flex-1">
+                      <Label className="text-xs">Número {idx + 1}</Label>
+                      <Input
+                        value={num || ''}
+                        onChange={(e) => {
+                          const arr = [...(notifications.numbers || [])]
+                          arr[idx] = e.target.value
+                          setNotifications({ ...notifications, numbers: arr })
+                        }}
+                        placeholder="Ex.: 5561999999999"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const arr = [...(notifications.numbers || [])]
+                        arr.splice(idx, 1)
+                        setNotifications({ ...notifications, numbers: arr })
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+                <div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setNotifications({ ...notifications, numbers: [...(notifications.numbers || []), ''] })}
+                  >
+                    Adicionar número
+                  </Button>
+                </div>
+                <p className="text-xs text-slate-500">Use formato E.164 com DDI, ex.: Brasil 55 + número.</p>
+              </div>
+
+              <Button className="w-full" onClick={saveNotifications} disabled={savingNotifications}>
+                <Save className="w-4 h-4 mr-2" />
+                {savingNotifications ? 'Salvando…' : 'Salvar Notificações'}
+              </Button>
+
+              <div className="grid gap-2 pt-4">
+                <div className="flex items-center justify-between">
+                  <Label>Logs recentes</Label>
+                  <Button type="button" variant="outline" size="sm" onClick={loadNotifLogs} disabled={loadingNotifLogs}>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    {loadingNotifLogs ? 'Atualizando…' : 'Atualizar'}
+                  </Button>
+                </div>
+                <div className="border rounded-md divide-y">
+                  {(notifLogs || []).slice(0, 10).map((log) => (
+                    <div key={log.id} className="p-2 text-sm flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <div className="font-medium">{String(log.to || '').replace(/\D/g,'') || '-'}</div>
+                        <div className="text-slate-500">{new Date(String(log.createdAt || Date.now())).toLocaleString('pt-BR')}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-medium">{String(log.channel || 'desconhecido')} • {String(log.status || 'unk')}</div>
+                        {log.error ? (<div className="text-xs text-red-600">{String(log.error).slice(0,120)}</div>) : null}
+                      </div>
+                    </div>
+                  ))}
+                  {(notifLogs || []).length === 0 && (
+                    <div className="p-3 text-sm text-slate-500">Nenhum log encontrado ainda. Crie uma O.S. para gerar logs.</div>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>

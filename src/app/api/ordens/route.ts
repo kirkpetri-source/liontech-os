@@ -3,6 +3,8 @@ export const runtime = 'nodejs'
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import { requireAuth } from '@/lib/auth';
+import { createEvolutionAPI } from '@/lib/evolution-api';
+import { sendText as waSendText } from '@/lib/whatsapp-web';
 
 type OrdemServico = {
   id?: string;
@@ -105,6 +107,102 @@ export async function POST(request: Request) {
 
     const ref = await adminDb.collection('ordens').add(os);
     const created = { id: ref.id, ...os };
+
+    // Disparo de notificações automáticas
+    try {
+      const cfgSnap = await adminDb.collection('config').doc('geral').get()
+      const cfg = (cfgSnap.data() || {}) as any
+      const notifications = cfg?.notifications || { enabled: true, numbers: ['5564999555364'] }
+      const enabled = notifications?.enabled !== false
+      const numbers: string[] = Array.isArray(notifications?.numbers) && notifications.numbers.length > 0
+        ? notifications.numbers
+        : ['5564999555364']
+
+      if (enabled && numbers.length > 0) {
+        const evoCfg = cfg?.evolution || {}
+        const evoCanSend = !!(evoCfg?.enabled && evoCfg?.baseUrl && evoCfg?.instanceName && evoCfg?.token)
+
+        // Mensagem interna (controle operacional) conforme requisitos
+        const now = new Date()
+        const dt = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(now)
+        const resumo = (created.descricaoServico || created.equipamentoProblema || '').toString()
+        const previsao = created.previsaoEntrega ? created.previsaoEntrega : '—'
+        const rastreamento = created.rastreamentoExterno ? created.rastreamentoExterno : '—'
+        const prioridade = 'Não definida' // Campo não existente nas O.S.; mantido informativo
+        const message = [
+          'Foi aberta uma nova O.S no sistema',
+          '[Notificação Interna - Controle Operacional]',
+          `O.S: ${created.numeroOS}`,
+          `Tipo de Serviço: ${created.categoria}`,
+          `Prioridade: ${prioridade}`,
+          `Status Inicial: ${created.status}`,
+          `Cliente: ${created.clienteNome}`,
+          `Equipamento: ${created.equipamentoModelo}`,
+          `Resumo: ${resumo || '—'}`,
+          `Previsão: ${previsao}`,
+          `Rastreamento: ${rastreamento}`,
+          `Data/Hora: ${dt}`
+        ].join('\n')
+
+        // Helper para logar tentativas
+        const logAttempt = async (to: string, channel: string, status: 'sent' | 'failed', error?: string) => {
+          try {
+            await adminDb.collection('notifications_logs').add({
+              kind: 'os_created',
+              osId: created.id,
+              numeroOS: created.numeroOS,
+              to,
+              channel,
+              status,
+              error: error || null,
+              createdAt: new Date().toISOString(),
+              payloadPreview: message.slice(0, 500)
+            })
+          } catch (e) {
+            console.error('Falha ao registrar log de notificação:', e)
+          }
+        }
+
+        if (evoCanSend) {
+          const api = createEvolutionAPI({ baseUrl: evoCfg.baseUrl, instanceName: evoCfg.instanceName, token: evoCfg.token, webhook: evoCfg.webhook })
+          for (const to of numbers) {
+            try {
+              // Envio exclusivamente da mensagem interna de monitoramento
+              await api.sendTextMessage(to, message)
+              await logAttempt(to, 'evolution', 'sent')
+            } catch (err: any) {
+              const msg = typeof err?.message === 'string' ? err.message : String(err || '')
+              console.error('Erro ao enviar via EvolutionAPI:', msg)
+              await logAttempt(to, 'evolution', 'failed', msg)
+              // Fallback para WhatsApp Web, se possível
+              try {
+                await waSendText(to, message)
+                await logAttempt(to, 'whatsapp_web', 'sent')
+              } catch (err2: any) {
+                const msg2 = typeof err2?.message === 'string' ? err2.message : String(err2 || '')
+                console.error('Erro no fallback WhatsApp Web:', msg2)
+                await logAttempt(to, 'whatsapp_web', 'failed', msg2)
+              }
+            }
+          }
+        } else {
+          // Sem EvolutionAPI ativo: tentar enviar apenas via WhatsApp Web
+          for (const to of numbers) {
+            try {
+              await waSendText(to, message)
+              await logAttempt(to, 'whatsapp_web', 'sent')
+            } catch (err: any) {
+              const msg = typeof err?.message === 'string' ? err.message : String(err || '')
+              console.error('Erro ao enviar WhatsApp Web:', msg)
+              await logAttempt(to, 'whatsapp_web', 'failed', msg)
+            }
+          }
+        }
+      }
+    } catch (notifyErr) {
+      console.error('Erro no fluxo de notificação automática:', notifyErr)
+    }
+
     return NextResponse.json(created, { status: 201 });
   } catch (err) {
     console.error('POST /api/ordens error:', err);
